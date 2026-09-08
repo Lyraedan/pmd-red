@@ -58,6 +58,12 @@ const void *Pc_GbaToHost(unsigned gba)
 #else
 #include <sys/mman.h>
 #include <limits.h>
+#include <unistd.h>
+#include <errno.h>
+#ifdef __APPLE__
+#include <mach/mach.h>
+#include <mach/mach_vm.h>
+#endif
 #endif
 
 static int sRomSpaceMapped = 0;
@@ -74,15 +80,66 @@ static unsigned char *Pc_MapRomSpace(void)
     // Fall back to a free block anywhere; each baked word is re-homed below.
     p = VirtualAlloc(NULL, 0x02000000, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     return (unsigned char *)p;
+#elif defined(__APPLE__)
+    // macOS: try multiple approaches to map at the canonical GBA window.
+    // On Apple Silicon the kernel restricts user-space to upper addresses,
+    // so MAP_FIXED / VM_FLAGS_FIXED at 0x08000000 often fails. Try anyway
+    // because if it succeeds the baked pointers work without patching.
+    {
+        mach_vm_address_t addr = 0x08000000;
+        mach_vm_size_t sz = 0x02000000;
+        kern_return_t kr = mach_vm_allocate(mach_task_self(), &addr, sz,
+                                            VM_FLAGS_FIXED);
+        if (kr == KERN_SUCCESS) {
+            fprintf(stdout, "pmd-red-pc: GBA ROM window at canonical 0x08000000 (mach_vm)\n");
+            return (unsigned char *)addr;
+        }
+    }
+    // Second try: mmap with MAP_FIXED (some macOS versions allow it).
+    {
+        void *p = mmap((void *)0x08000000, 0x02000000,
+                       PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+        if (p != MAP_FAILED) {
+            fprintf(stdout, "pmd-red-pc: GBA ROM window at canonical 0x08000000 (mmap)\n");
+            return (unsigned char *)p;
+        }
+    }
+    // Fallback: allocate anywhere. Baked 0x08xxxxxx pointers will NOT work;
+    // the relocation loop patches what it can, but truncated 32-bit host
+    // addresses will cause crashes in game code that dereferences them.
+    {
+        vm_address_t addr = 0;
+        vm_size_t sz = 0x02000000;
+        kern_return_t kr = vm_allocate(mach_task_self(), &addr, sz,
+                                       VM_FLAGS_ANYWHERE);
+        if (kr == KERN_SUCCESS) {
+            fprintf(stderr, "pmd-red-pc: WARNING GBA ROM window floating at %p; "
+                            "baked 0x08xxxxxx pointers will be truncated\n", (void *)addr);
+            return (unsigned char *)addr;
+        }
+    }
+    return NULL;
 #else
-    void *p = mmap((void *)0x08000000, 0x02000000,
-                   PROT_READ | PROT_WRITE,
-                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-    if (p != MAP_FAILED)
+    // Linux / other: try MAP_FIXED, fall back to floating.
+    {
+        void *p = mmap((void *)0x08000000, 0x02000000,
+                       PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+        if (p != MAP_FAILED) {
+            fprintf(stdout, "pmd-red-pc: GBA ROM window at canonical 0x08000000\n");
+            return (unsigned char *)p;
+        }
+        fprintf(stderr, "pmd-red-pc: mmap MAP_FIXED failed errno=%d; trying floating\n", errno);
+    }
+    {
+        void *p = mmap(NULL, 0x02000000, PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (p == MAP_FAILED)
+            return NULL;
+        fprintf(stdout, "pmd-red-pc: GBA ROM window floating at %p\n", p);
         return (unsigned char *)p;
-    p = mmap(NULL, 0x02000000, PROT_READ | PROT_WRITE,
-             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    return (p == MAP_FAILED) ? NULL : (unsigned char *)p;
+    }
 #endif
 }
 
@@ -101,22 +158,37 @@ void Pc_SetupRomAddressSpace(void)
                         "baked 0x08xxxxxx data pointers will be invalid\n");
         return;
     }
+
     if (base != (unsigned char *)0x08000000) {
-        // Fixed window unavailable (e.g. an ASLR-placed DLL there): re-home
-        // every baked 0x08xxxxxx word to `base + delta` first, then mirror.
+        /* Fixed window unavailable (e.g. an ASLR-placed DLL there): re-home
+         * every baked 0x08xxxxxx word to `base + delta` first, then mirror. */
         for (i = 0; i < pcGbaRelocCount; i++) {
             unsigned int *w = pcGbaRelocTable[i];
-            unsigned int gba = *w;
-            if ((gba & 0xF8000000u) == 0x08000000u)
-                *w = (unsigned)((unsigned char *)base + (gba - 0x08000000u));
+            unsigned int gba;
+            if (w == NULL)
+                continue;
+            gba = *w;
+            if ((gba & 0xF8000000u) == 0x08000000u) {
+                unsigned off = gba - 0x08000000u;
+                if (off < 0x02000000u)
+                    *w = (unsigned)(base + off);
+            }
         }
         fprintf(stdout, "pmd-red-pc: GBA ROM window re-homed to %p\n", (void *)base);
     }
     sRomSpaceMapped = 1;
     sRomMapBase = base;
-    for (i = 0; i < pcGbaAddrCount; i++)
-        memcpy(base + (pcGbaAddrTable[i].gba - 0x08000000u),
-               pcGbaAddrTable[i].host, pcGbaAddrTable[i].size);
+    for (i = 0; i < pcGbaAddrCount; i++) {
+        unsigned off = pcGbaAddrTable[i].gba - 0x08000000u;
+        if (pcGbaAddrTable[i].host == NULL || pcGbaAddrTable[i].size == 0)
+            continue;
+        if (off + pcGbaAddrTable[i].size > 0x02000000u) {
+            fprintf(stderr, "pmd-red-pc: WARNING blob %u (gba=0x%08x off=0x%x size=0x%x) exceeds ROM window\n",
+                    i, pcGbaAddrTable[i].gba, off, pcGbaAddrTable[i].size);
+            continue;
+        }
+        memcpy(base + off, pcGbaAddrTable[i].host, pcGbaAddrTable[i].size);
+    }
     fprintf(stdout, "pmd-red-pc: mirrored %u blob arrays into the GBA ROM window\n",
             pcGbaAddrCount);
 }

@@ -847,6 +847,12 @@ const unkChar *GetCharacter(s32 chr)
                     (int)gCharmaps[gCurrentCharmap]->unk0, (const void *)strPtr);
         nCalls++;
     }
+    /* On 64-bit hosts the charmap strPtr is a baked GBA address that was never
+     * relocated (the ROM window at 0x08000000 can't be created on macOS ARM64).
+     * Detect the bogus pointer and return the fallback character so the game
+     * doesn't crash. */
+    if ((unsigned long)strPtr < 0x10000000 || (unsigned long)strPtr > 0x00007FFFFFFFFFFFULL)
+        return &gUnknown_80B86A4;
 #endif
     // TODO: create labels for these
     if (chr > 63487 && chr < 65535)

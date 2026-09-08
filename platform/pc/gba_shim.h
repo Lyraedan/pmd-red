@@ -33,7 +33,7 @@ void Pc_InputInit(void);
 void Pc_InputPump(void); // refresh REG_KEYINPUT shadow (active-low, KEYS_MASK idle)
 void Pc_InputShutdown(void);
 int Pc_QuitRequested(void); // true when window close / Esc / quit requested
-void Pc_SetAutopress(int startFrame, int durFrames, u16 keys); // scripted key hold (CI)
+void Pc_SetAutopress(int startFrame, int durFrames, unsigned short keys); // scripted key hold (CI)
 
 // ---- Audio backend (audio_pc.c, mute-first) ----
 void Pc_AudioInit(void);

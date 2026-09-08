@@ -4,6 +4,7 @@
 // mixer (src/m4a.c + src/m4a_1.s are excluded from the host build; see
 // platform/pc/Makefile.pc). Stage 2: SDL_Audio sequencer fed by
 // sound/songs/midi/*.mid + direct_sound_samples (see docs/PC_PORT_INVENTORY.md).
+#include "gba/gba.h"
 #include "gba_shim.h"
 
 void Pc_AudioInit(void) {}

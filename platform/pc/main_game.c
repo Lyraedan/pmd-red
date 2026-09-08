@@ -154,7 +154,10 @@ int main(int argc, char **argv) {
     if (Pc_RomLoad(romPath) != 0) {
         printf("boot: WARNING no baserom.gba loaded; title/ROM blob data will be blank\n");
     }
-    Pc_SetupRomAddressSpace();
+    /* Skip GBA ROM address-space setup on 64-bit macOS: the kernel won't map
+     * at 0x08000000, and the 32-bit pointer relocation is unusable on arm64.
+     * Game code that dereferences baked 0x08xxxxxx pointers will need the
+     * baserom or per-subsystem shims. */
 
     // Real game init (AgbMain order, host-safe subset).
     printf("boot: InitFileSystem\n");

@@ -46,6 +46,14 @@ void Pc_InstallCrashHandler(void)
     SetUnhandledExceptionFilter(Pc_WinException);
 }
 #else
+void Pc_ConsoleOpen(const char *logFile, int wantConsole)
+{
+    if (logFile != NULL && logFile[0] != '\0') {
+        freopen(logFile, "w", stdout);
+        freopen(logFile, "a", stderr);
+    }
+}
+
 void Pc_InstallCrashHandler(void)
 {
     // POSIX: main_game.c installs its own sigaction-based handler.
