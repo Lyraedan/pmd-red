@@ -20,8 +20,10 @@ Place your US rom of Red Rescue Team in the root of the repo, then run "builder/
 The exe will be built and staged in "build"
 Uses msys2 to build and assumes that is in C:
 
-Uses SDL2 for rendering & audio
+Uses SDL2 for rendering & audio.
+
 Nothing is emulated, everything runs natively.
+
 Saves are compatible with emulator saves. Just copy your .sav to the directory of the exe and rename it to "rescue-team.sav"
 
 You'll need python for asset generation (graphics, sfx etc)
