@@ -11,6 +11,7 @@
 #include "ground_effect.h"
 #include "ground_object.h"
 #include "ground_map.h"
+#include "pc_widescreen.h"
 
 struct unkStruct_20399E8
 {
@@ -287,7 +288,7 @@ void sub_809D25C(void)
         if (r3 >= sp1C.y)
             r3 = sp1C.y - 1;
 
-        sUnknown_20399E8.unk3C.x = (r2 - 30976) / 256;
+        sUnknown_20399E8.unk3C.x = (r2 - PC_GROUND_CAM_X) / 256;
         sUnknown_20399E8.unk3C.y = (r3 - 20480) / 256;
         sUnknown_20399E8.unk44 = 1;
     }

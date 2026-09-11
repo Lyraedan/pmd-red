@@ -14,6 +14,25 @@
 #include "unk_dungeon_load.h"
 #include "palette_fade_util.h"
 #include "constants/dungeon.h"
+#include "pc_widescreen.h"
+
+// Wide BG2/BG3 tilemap redirection (see pc_widescreen.h). The ground render
+// functions write row-strided into gPc_WideTilemaps on PC so the compositor
+// can show beyond 240px; on the GBA these expand to the classic 32-column
+// gBgTilemaps layout.
+#ifdef PLATFORM_PC
+#define PC_BG_TILEMAPS(layer) gPc_WideTilemaps[layer]
+#define PC_BG_STRIDE() 64
+#define PC_CHUNKS2() (Pc_ViewW8() / 2) // 2x2-chunk maps: cols/2 chunks per row
+#define PC_CHUNKS3() (Pc_ViewW8() / 3) // 3x3-chunk maps: cols/3 chunks per row
+#define Pc_MarkGroundWide() Pc_WideBgsMark()
+#else
+#define PC_BG_TILEMAPS(layer) gBgTilemaps[layer]
+#define PC_BG_STRIDE() 32
+#define PC_CHUNKS2() 16
+#define PC_CHUNKS3() 10
+#define Pc_MarkGroundWide()
+#endif
 
 // This file most likely deals with map loading and writing to VRAM. It even has a custom decompression function.
 
@@ -45,7 +64,7 @@ void GroundBg_Init(GroundBg *groundBg, const SubStruct_52C *a1)
     groundBg->unk52C = *a1;
     groundBg->tileMappings = MemoryAlloc(groundBg->unk52C.unk8 * 18, MEMALLOC_GROUP_6);
     for (id = 0; id < groundBg->unk52C.numLayers; id++) {
-        groundBg->bgTilemaps[id] = &gBgTilemaps[2 + groundBg->unk52C.unkA + id][0][0];
+        groundBg->bgTilemaps[id] = &PC_BG_TILEMAPS(2 + groundBg->unk52C.unkA + id)[0][0];
         groundBg->chunkMappings[id] = MemoryAlloc(groundBg->unk52C.unk10 * 128, MEMALLOC_GROUP_6);
     }
     for (; id < NUM_LAYERS; id++) {
@@ -869,10 +888,10 @@ static void RenderChunksToBgTilemap_2x2(MapRender *mapRender)
 
         for (arrPtrId = 0; arrPtrId < 2; arrPtrId++) {
             tilemapPtrs[arrPtrId] = &mapRender->bgTilemaps[0][unk28Id];
-            unk28Id += 32;
+            unk28Id += PC_BG_STRIDE();
         }
 
-        for (j = 0; j < 16; j++) {
+        for (j = 0; j < PC_CHUNKS2(); j++) {
             u16 *currSrc = &mapRender->tileMappings[*currPtr++ * 9];
             for (arrPtrId = 0; arrPtrId < 2; arrPtrId++) {
                 u16 *currDst = tilemapPtrs[arrPtrId];
@@ -903,10 +922,10 @@ static void RenderChunksToBgTilemaps_2x2(MapRender *mapRender)
         for (arrPtrId = 0; arrPtrId < 2; arrPtrId++) {
             tilemapPtrs1[arrPtrId] = &mapRender->bgTilemaps[0][unk28Id];
             tilemapPtrs2[arrPtrId] = &mapRender->bgTilemaps[1][unk28Id];
-            unk28Id += 32;
+            unk28Id += PC_BG_STRIDE();
         }
 
-        for (j = 0; j < 16; j++) {
+        for (j = 0; j < PC_CHUNKS2(); j++) {
             u16 *currSrc1 = &mapRender->tileMappings[*currPtr1++ * 9];
             u16 *currSrc2 = &mapRender->tileMappings[*currPtr2++ * 9];
             for (arrPtrId = 0; arrPtrId < 2; arrPtrId++) {
@@ -937,7 +956,7 @@ static void RenderChunksToBgTilemap_3x3(MapRender *mapRender)
 
         for (arrPtrId = 0; arrPtrId < 3; arrPtrId++) {
             tilemapPtrs[arrPtrId] = &mapRender->bgTilemaps[0][unk28Id];
-            unk28Id += 32;
+            unk28Id += PC_BG_STRIDE();
         }
 
         if (mod3 != 0) {
@@ -964,7 +983,7 @@ static void RenderChunksToBgTilemap_3x3(MapRender *mapRender)
             }
         }
 
-        for (j = 0; j < 10; j++) {
+        for (j = 0; j < PC_CHUNKS3(); j++) {
             u16 *currSrc = &mapRender->tileMappings[*currPtr++ * 9];
             for (arrPtrId = 0; arrPtrId < 3; arrPtrId++) {
                 u16 *currDst = tilemapPtrs[arrPtrId];
@@ -1031,7 +1050,7 @@ static void RenderChunksToBgTilemapWrapAround_3x3(MapRender *mapRender)
 
         for (arrPtrId = 0; arrPtrId < 3; arrPtrId++) {
             tilemapPtrs[arrPtrId] = &mapRender->bgTilemaps[0][unk28Id];
-            unk28Id += 32;
+            unk28Id += PC_BG_STRIDE();
         }
 
         if (mod3 != 0) {
@@ -1062,7 +1081,7 @@ static void RenderChunksToBgTilemapWrapAround_3x3(MapRender *mapRender)
             }
         }
 
-        for (j = 0; j < 10; j++) {
+        for (j = 0; j < PC_CHUNKS3(); j++) {
             u16 *currSrc = &mapRender->tileMappings[*currPtr++ * 9];
 
             for (arrPtrId = 0; arrPtrId < 3; arrPtrId++) {
@@ -1122,7 +1141,7 @@ static void RenderChunksToBgTilemaps_3x3(MapRender *mapRender)
         for (arrPtrId = 0; arrPtrId < 3; arrPtrId++) {
             tilemapPtrs1[arrPtrId] = &mapRender->bgTilemaps[0][unk28Id];
             tilemapPtrs2[arrPtrId] = &mapRender->bgTilemaps[1][unk28Id];
-            unk28Id += 32;
+            unk28Id += PC_BG_STRIDE();
         }
 
         if (mod3 != 0) {
@@ -1158,7 +1177,7 @@ static void RenderChunksToBgTilemaps_3x3(MapRender *mapRender)
             }
         }
 
-        for (j = 0; j < 10; j++) {
+        for (j = 0; j < PC_CHUNKS3(); j++) {
             u16 *currSrc1 = &mapRender->tileMappings[*currPtr1++ * 9];
             u16 *currSrc2 = &mapRender->tileMappings[*currPtr2++ * 9];
             for (arrPtrId = 0; arrPtrId < 3; arrPtrId++) {
@@ -1441,6 +1460,7 @@ void sub_80A4764(GroundBg *groundBg)
         }
     }
 
+    Pc_MarkGroundWide();
     groundBg->unk52A = 1;
 }
 

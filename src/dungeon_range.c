@@ -1,5 +1,6 @@
 #include "global.h"
 #include "globaldata.h"
+#include "pc_widescreen.h"
 #include "dungeon_range.h"
 #include "dungeon_random.h"
 #include "dungeon_logic.h"
@@ -191,7 +192,7 @@ bool8 sub_8083568(s32 inX, s32 inY, u8 index)
     s32 x = inX - gDungeon->unk181e8.cameraPixelPos.x;
     s32 y = inY - gDungeon->unk181e8.cameraPixelPos.y;
 
-    if (x >= -16 && y >= -16 && x <= 255 && y <= 175)
+    if (x >= -16 && y >= -16 && x <= PC_VIEW_W() + 15 && y <= 175)
     {
         SpriteSetX(&gUnknown_202ED28[0][index].sprite, x + gUnknown_202ED28[0][index].pos.x);
         SpriteSetY(&gUnknown_202ED28[0][index].sprite, y + gUnknown_202ED28[0][index].pos.y);

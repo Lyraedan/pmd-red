@@ -4,7 +4,18 @@
 #include "window_buffer.h"
 #include "math.h"
 
+#ifdef PLATFORM_PC
+#include "pc_widescreen.h"
+#endif
+
 #define UNROLL16(x) do { x; x; x; x; x; x; x; x; x; x; x; x; x; x; x; x; } while (0)
+
+#define Y_MAX 160
+#ifdef PLATFORM_PC
+#define X_MAX Pc_ViewW()
+#else
+#define X_MAX 240
+#endif
 
 EWRAM_DATA bool8 gDrawWindow = FALSE;
 EWRAM_DATA s16 *gWinBufferPtr = NULL;
@@ -17,16 +28,23 @@ EWRAM_DATA static bool32 sBoolUnk = FALSE;      // Toggled but is never read
 EWRAM_DATA static bool32 sBufferIdx = FALSE;    // Write to sBuffer0 or sBuffer1
 EWRAM_DATA static s16 *sBufferPtr = NULL;
 UNUSED EWRAM_DATA static u32 sUnused0 = 0;
+#ifdef PLATFORM_PC
+// Per-scanline layout on PC: [WIN0H, WIN1H(classic), WIN1x1, WIN1x2]. The last
+// two hold the WIN1 range as full s16 coords so widescreen windows can exceed
+// the GBA's 8-bit (0-255) window coordinates. In classic 240 mode they mirror
+// the packed bytes, so the compositor semantics are unchanged.
+#define PC_WIN_STRIDE 4
+EWRAM_DATA static s16 sBuffer0[Y_MAX * PC_WIN_STRIDE] = {0};
+EWRAM_DATA static s16 sBuffer1[Y_MAX * PC_WIN_STRIDE] = {0};
+#else
 EWRAM_DATA static s16 sBuffer0[324] = {0}; // These might be [2][162]
 EWRAM_DATA static s16 sBuffer1[324] = {0};
+#endif
 
 EWRAM_INIT s16 *gWindowBgCopy = NULL;
 
 // Rounded corners in low visibility rooms
 static const s16 sRoomCornerDim[17] = {16, 12, 9, 7, 6, 5, 4, 3, 2, 2, 1, 1, 1, 0, 0, 0, 0};
-
-#define Y_MAX 160
-#define X_MAX 240
 // In corridor with heavy darkness, dim everything except a small circle
 static const s16 sCorridorDim1[Y_MAX] = {
     0x100, 0x100, 0x100, 0x100, 0x100, 0x100, 0x100, 0x100,
@@ -91,6 +109,60 @@ static const s16 sDefaultBgH[Y_MAX] = {
     [0 ... Y_MAX - 1] = 0
 };
 
+#ifdef PLATFORM_PC
+// Write one scanline of window data. Classic (GBA) writes the packed pair;
+// PC writes [WIN0H, WIN1H(classic), WIN1x1, WIN1x2] so widescreen windows can
+// exceed the GBA's 8-bit coordinate range. On the GBA the helper is a macro
+// that emits the original two writes, keeping the ROM build byte-identical.
+static void Pc_PutWin(s16 **pp, s16 win0, s16 win1, s16 x1, s16 x2)
+{
+    *(*pp)++ = win0;
+    *(*pp)++ = win1;
+    *(*pp)++ = x1;
+    *(*pp)++ = x2;
+}
+
+// Unpack a classic packed WIN1H (byte X1 << 8 | byte X2) into full s16 coords.
+static void Pc_UnpackWin1(s16 packed, s16 *x1, s16 *x2)
+{
+    *x1 = (packed >> 8) & 0xFF;
+    *x2 = packed & 0xFF;
+}
+
+// Re-center the corridor dim circle (packed around screen x=120) onto the
+// current view center in widescreen; classic mode just unpacks.
+static void Pc_ShiftDim(s16 packed, s16 *x1, s16 *x2)
+{
+    if (Pc_WidescreenOn()) {
+        int shift = Pc_ViewW() / 2 - 120;
+        int l = ((packed >> 8) & 0xFF) + shift;
+        int r = (packed & 0xFF) + shift;
+        if (l < 0) l = 0;
+        if (r < 0) r = 0;
+        if (l > Pc_ViewW()) l = Pc_ViewW();
+        if (r > Pc_ViewW()) r = Pc_ViewW();
+        *x1 = l;
+        *x2 = r;
+    }
+    else {
+        Pc_UnpackWin1(packed, x1, x2);
+    }
+}
+
+// One corridor-dim scanline: WIN0H from src1, WIN1H + full-range coords from
+// the shifted packed circle. Kept as a helper so UNROLL16 sees a single
+// argument (a compound statement would split on its commas).
+static void Pc_PutDim(s16 **pp, s16 win0, s16 packed)
+{
+    s16 x1, x2;
+    Pc_ShiftDim(packed, &x1, &x2);
+    Pc_PutWin(pp, win0, packed, x1, x2);
+}
+#else
+#define Pc_PutWin(pp, w0, w1, x1, x2) do { *(*(pp))++ = (w0); *(*(pp))++ = (w1); } while (0)
+#define Pc_PutDim(pp, win0, packed) do { *(*(pp))++ = (win0); *(*(pp))++ = (packed); } while (0)
+#endif
+
 // arm9.bin::02006154
 void WindowBgBufferInit(void)
 {
@@ -126,11 +198,74 @@ void CopyWindowBgBuffer(s32 *pos, u8 kind)
         case COPY_WINDOW_BG_BUFFER_WIN0:
             for (i = 0; i < 10; i++) {
                 UNROLL16(
-                    *dst++ = *src1++;   // WIN0H
-                    *dst++ = 0;         // WIN1H (disabled)
+                    Pc_PutWin(&dst, *src1++, 0, 0, 0);   // WIN1H disabled
                 );
             }
             break;
+#ifdef PLATFORM_PC
+        case COPY_WINDOW_BG_BUFFER_DIM2:
+            src2 = sCorridorDim2;
+            for (i = 0; i < 10; i++) {
+                UNROLL16(Pc_PutDim(&dst, *src1++, *src2++));
+            }
+            break;
+        case COPY_WINDOW_BG_BUFFER_DIM1:
+            src2 = sCorridorDim1;
+            for (i = 0; i < 10; i++) {
+                UNROLL16(Pc_PutDim(&dst, *src1++, *src2++));
+            }
+            break;
+        case COPY_WINDOW_BG_BUFFER_ROOM_DIM:
+            if ((pos[0] < 0 && pos[2] < 0)
+                || (pos[1] < 0 && pos[3] < 0)
+                || (pos[0] >= X_MAX && pos[2] >= X_MAX)
+                || (pos[1] >= Y_MAX && pos[3] >= Y_MAX)) {
+                // If the camera is outside the room, dim the entire screen
+                for (i = 0; i < 10; i++) {
+                    UNROLL16(Pc_PutWin(&dst, *src1++, 0xF0, 0, Pc_ViewW()));
+                }
+            }
+            else {
+                s32 left;
+                s32 right;
+                for (i = 0; i < Y_MAX; i++) {
+                    if (pos[1] > i) {
+                        Pc_PutWin(&dst, *src1++, 256, 1, 0);
+                    }
+                    else if (pos[3] <= i) {
+                        Pc_PutWin(&dst, *src1++, 256, 1, 0);
+                    }
+                    else {
+                        if (i - pos[1] < 16) {
+                            right = pos[0] + sRoomCornerDim[i - pos[1]];
+                            left = pos[2] - sRoomCornerDim[i - pos[1]];
+                        }
+                        else if (pos[3] - i < 16) {
+                            right = pos[0] + sRoomCornerDim[pos[3] - i];
+                            left = pos[2] - sRoomCornerDim[pos[3] - i];
+                        }
+                        else {
+                            right = pos[0];
+                            left = pos[2];
+                        }
+
+                        if (right < 0)
+                            right = 0;
+                        if (right > X_MAX - 1)
+                            right = X_MAX - 1;
+
+                        if (left < 1)
+                            left = 1;
+                        if (left > X_MAX)
+                            left = X_MAX;
+
+                        // Note this is backwards so the dim window is drawn on the outside
+                        Pc_PutWin(&dst, *src1++, (left << 8) | right, left, right);
+                    }
+                }
+            }
+            break;
+#else
         case COPY_WINDOW_BG_BUFFER_DIM2:
             src2 = sCorridorDim2;
             for (i = 0; i < 10; i++) {
@@ -202,6 +337,100 @@ void CopyWindowBgBuffer(s32 *pos, u8 kind)
                 }
             }
             break;
+#endif
+        #ifdef PLATFORM_PC
+        case COPY_WINDOW_BG_BUFFER_UNK4:
+            src2 = gUnknown_80B82AA;
+            for (i = 0; i < 15; i++) {
+                UNROLL16({
+                    s16 packed = *src2++;
+                    Pc_PutWin(&dst, *src1++, packed, (packed >> 8) & 0xFF, packed & 0xFF);
+                });
+            }
+            break;
+        case COPY_WINDOW_BG_BUFFER_UNK5: {
+            s32 r8;
+            s32 sp14;
+            s32 uVar7;
+            s32 sp10;
+            s32 iVar11;
+
+            s32 val1;
+            s32 val2;
+            s32 val3;
+            s32 spC;
+
+            s32 j, k;
+
+            for (i = 0; i < 15; i++) {
+                UNROLL16(Pc_PutWin(&dst, *src1++, 256, 1, 0));
+            }
+
+            val1 = sUnknown_2026E40;
+            val2 = sUnknown_2026E44;
+            val3 = sUnknown_2026E48;
+
+            spC = 0x400 / (val3 / 256 + 1);
+            iVar11 = val2 / 256;
+
+            k = iVar11;
+            j = iVar11;
+            for (sp10 = 0; sp10 < 0x400; sp10 += spC) {
+                s32 tmp1 = sin_4096(sp10) * val3 / 256;
+
+                sp14 = (val2 + tmp1) / 256;
+                r8 = (val2 - tmp1) / 256;
+
+                if (j < sp14 || k > r8) {
+                    s32 tmp2 = cos_4096(sp10) * val3 / 256;
+
+                    s32 iVar5 = (val1 - tmp2) / 256;
+                    s32 iVar3 = (val1 + tmp2) / 256;
+
+                    if (iVar5 < 0)
+                        iVar5 = 0;
+                    if (iVar3 < 0)
+                        iVar3 = 0;
+                    if (iVar5 > 240 - 1)
+                        iVar5 = 240 - 1;
+                    if (iVar3 > 240 - 1)
+                        iVar3 = 240 - 1;
+
+                    if (iVar5 > iVar3)
+                        uVar7 = (iVar5 << 8) | iVar3;
+                    else
+                        uVar7 = (iVar3 << 8) | iVar5;
+
+                    for (; j < sp14; j++) {
+                        s16 *buf;
+                        if (j < 0)
+                            continue;
+                        if (j >= 160)
+                            continue;
+
+                        buf = !sBufferIdx ? sBuffer0 : sBuffer1;
+                        buf[j * PC_WIN_STRIDE + 1] = (s16)uVar7;
+                        buf[j * PC_WIN_STRIDE + 2] = (s16)((uVar7 >> 8) & 0xFF);
+                        buf[j * PC_WIN_STRIDE + 3] = (s16)(uVar7 & 0xFF);
+                    }
+
+                    for (; k > r8; k--) {
+                        s16 *buf;
+                        if (k < 0)
+                            continue;
+                        if (k >= 160)
+                            continue;
+
+                        buf = !sBufferIdx ? sBuffer0 : sBuffer1;
+                        buf[k * PC_WIN_STRIDE + 1] = (s16)uVar7;
+                        buf[k * PC_WIN_STRIDE + 2] = (s16)((uVar7 >> 8) & 0xFF);
+                        buf[k * PC_WIN_STRIDE + 3] = (s16)(uVar7 & 0xFF);
+                    }
+                }
+            }
+            break;
+        }
+#else
         case COPY_WINDOW_BG_BUFFER_UNK4:
             src2 = gUnknown_80B82AA;
             for (i = 0; i < 15; i++) {
@@ -288,6 +517,7 @@ void CopyWindowBgBuffer(s32 *pos, u8 kind)
             }
             break;
         }
+#endif
     }
 }
 

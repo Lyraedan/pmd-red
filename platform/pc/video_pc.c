@@ -19,6 +19,7 @@
 
 #include "gba/gba.h"
 #include "gba_shim.h"
+#include "pc_widescreen.h"
 #include "window_buffer.h"
 
 // The game defines these (EWRAM_DATA in src/window_buffer.c). The backend-only
@@ -27,10 +28,43 @@
 __attribute__((weak)) bool8 gDrawWindow = FALSE;
 __attribute__((weak)) s16 *gWinBufferPtr = NULL;
 
-#define PC_W 240
-#define PC_H 160
+// src/text_1.c defines the real array (PLATFORM_PC); smoke link falls back to
+// a zero-filled copy, which reads as transparent (palette index 0).
+__attribute__((weak)) unsigned short gPc_WideTilemaps[4][32][PC_TILEMAP_COLS];
 
-static unsigned int gPc_Frame[PC_W * PC_H];
+// ---- Widescreen state ----
+// gPc_Widescreen: the user-facing mode (config-driven). gPc_WideBgsActive is
+// set by the dungeon/ground tilemap writers each frame and consumed by the
+// compositor, so BG2/BG3 sample gPc_WideTilemaps only while such a scene owns
+// them (menus/world-map that draw 32-col data into gBgTilemaps still render).
+static int gPc_Widescreen = 0;
+static int gPc_WideBgsActive = 0;
+
+int Pc_ViewW(void) { return gPc_Widescreen ? PC_WIDE_W : PC_CLASSIC_W; }
+int Pc_ViewW8(void) { return gPc_Widescreen ? PC_WIDE_W8 : PC_CLASSIC_W8; }
+int Pc_WidescreenOn(void) { return gPc_Widescreen; }
+void Pc_SetWidescreen(int on) {
+    gPc_Widescreen = on ? 1 : 0;
+    // Blank the wide tilemap columns so a live toggle doesn't flash stale
+    // data; the next dungeon/ground frame repaints them.
+    Pc_WideBgsClear();
+}
+void Pc_WideBgsMark(void) { gPc_WideBgsActive = 1; }
+int Pc_WideBgsActive(void) { return gPc_WideBgsActive; }
+void Pc_WideBgsClear(void) {
+    unsigned int i;
+    gPc_WideBgsActive = 0;
+    for (i = 0; i < 4 * 32; i++)
+        memset(&gPc_WideTilemaps[i / 32][i % 32][PC_CLASSIC_W8], 0,
+               (PC_TILEMAP_COLS - PC_CLASSIC_W8) * sizeof(unsigned short));
+}
+
+#define PC_H 160
+// Max render width: wide BGs have PC_TILEMAP_COLS (512px) of tilemap; the
+// visible window is clamped to Pc_ViewW().
+#define PC_FRAME_W (PC_TILEMAP_COLS * 8)
+
+static unsigned int gPc_Frame[PC_FRAME_W * PC_H];
 static int gPc_Scale = 3;
 static int gPc_ScaleMode = PC_SCALE_INTEGER;
 static int gPc_Smoothing = 0;
@@ -105,6 +139,7 @@ void Pc_VideoInit(int scale) {
     gPc_Letterbox[0] = vp->letterboxR;
     gPc_Letterbox[1] = vp->letterboxG;
     gPc_Letterbox[2] = vp->letterboxB;
+    Pc_SetWidescreen(vp->widescreen);
     gPc_FrameNo = 0;
     memset(gPc_Frame, 0, sizeof(gPc_Frame));
 #ifdef HAVE_SDL2
@@ -114,9 +149,9 @@ void Pc_VideoInit(int scale) {
         if (vp->vsync)
             rflags |= SDL_RENDERER_PRESENTVSYNC;
         sWin = SDL_CreateWindow("pmd-red-pc", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                PC_W * gPc_Scale, PC_H * gPc_Scale, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+                                Pc_ViewW() * gPc_Scale, PC_H * gPc_Scale, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
         sRen = SDL_CreateRenderer(sWin, -1, rflags);
-        sTex = SDL_CreateTexture(sRen, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, PC_W, PC_H);
+        sTex = SDL_CreateTexture(sRen, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, PC_FRAME_W, PC_H);
     }
     Pc_VideoSetSmoothing(gPc_Smoothing);
     if (vp->fullscreen)
@@ -190,10 +225,24 @@ void Pc_VideoResizeScale(int scale) {
     if (sWin != NULL) {
         // Don't fight a fullscreen session; it shows the desktop size anyway.
         if (!(SDL_GetWindowFlags(sWin) & SDL_WINDOW_FULLSCREEN_DESKTOP))
-            SDL_SetWindowSize(sWin, PC_W * scale, PC_H * scale);
+            SDL_SetWindowSize(sWin, Pc_ViewW() * scale, PC_H * scale);
     }
 #else
     (void)scale;
+#endif
+}
+
+// Enable/disable widescreen from the settings UI: flip the mode, blank the
+// wide tilemap edge, and resize the window so the wider frame fits.
+void Pc_VideoSetWidescreen(int on) {
+    Pc_SetWidescreen(on);
+#ifdef HAVE_SDL2
+    if (sWin != NULL) {
+        if (!(SDL_GetWindowFlags(sWin) & SDL_WINDOW_FULLSCREEN_DESKTOP))
+            SDL_SetWindowSize(sWin, Pc_ViewW() * gPc_Scale, PC_H * gPc_Scale);
+    }
+#else
+    (void)on;
 #endif
 }
 
@@ -224,18 +273,30 @@ static int Pc_InWin(int x, s16 v) {
     return (x >= x1) || (x < x2);
 }
 
-// Fetch one BG text-mode pixel. Returns 0 (transparent) or palette index used.
+// Same as Pc_InWin but with full-range s16 coords (widescreen windows can
+// exceed the GBA's 8-bit 0-255 range).
+static int Pc_InWinRange(int x, int x1, int x2) {
+    if (x1 == x2)
+        return 0;
+    if (x1 < x2)
+        return (x >= x1) && (x < x2);
+    return (x >= x1) || (x < x2);
+}
+
+// Fetch one BG text-mode pixel from a tilemap. `map` is the map entry table
+// (VRAM screenbase, 32-col) or gPc_WideTilemaps (wide BGs, PC_TILEMAP_COLS
+// stride). mapW = columns, mapWpx = columns*8 = horizontal wrap distance.
 // Writes *palOut = index into the 512-entry PLTT array.
-static unsigned Pc_BgPixel(const u8 *vram, int charBase, int bpp8,
-                           int screenBase, int hofs, int vofs, int x, int y,
+static unsigned Pc_BgPixel(const u8 *vram, const u16 *map, int mapW, int mapStride,
+                           int charBase, int bpp8,
+                           int hofs, int vofs, int x, int y,
                            unsigned *palOut) {
-    // 256x256 map; text BGs wrap at 256 (other text sizes unused by game).
-    int sx = ((x + hofs) & 0xFF);
+    int mapWpx = mapW * 8;
+    int sx = (x + hofs) % mapWpx; // text BGs wrap at the map width
     int sy = ((y + vofs) & 0xFF);
 
-    // Map entry (2 bytes) at screenBase*0x800.
-    int cell = ((sy >> 3) & 31) * 32 + ((sx >> 3) & 31);
-    const u16 *map = (const u16 *)(vram + screenBase * 0x800);
+    // Map entry (2 bytes).
+    int cell = ((sy >> 3) & 31) * mapStride + ((sx >> 3) % mapW);
     u16 entry = map[cell];
 
     int tileId = entry & 0x3FF;
@@ -339,10 +400,18 @@ static void Pc_RenderFrame(void) {
     int prioBg[4][4]; // prioBg[p] = list of BG indexes at priority p
     int prioBgN[4] = { 0, 0, 0, 0 };
     int dispBg[4] = { DISPCNT_BG0_ON, DISPCNT_BG1_ON, DISPCNT_BG2_ON, DISPCNT_BG3_ON };
-    int p, i, y, x;
+    int p, i, y, x, vw;
+    int wideBgs;
+
+    // Consume the dungeon/ground writers' per-frame mark: the flag is raised
+    // whenever BG2/BG3 were painted into gPc_WideTilemaps this game frame, so
+    // the compositor samples those instead of the (stale) VRAM screenbases.
+    // Menu scenes that draw 32-col data into gBgTilemaps don't raise it.
+    wideBgs = gPc_WideBgsActive;
+    gPc_WideBgsActive = 0;
 
     Pc_EnsureRgbaLut();
-
+    vw = Pc_ViewW();
     for (i = 0; i < 4; i++) {
         bgOn[i] = (disp & dispBg[i]) != 0;
         bgPrio[i] = bgCnt[i] & 3;
@@ -351,20 +420,21 @@ static void Pc_RenderFrame(void) {
     if (disp & DISPCNT_FORCED_BLANK) {
         // Forced blank displays white lines.
         for (y = 0; y < PC_H; y++) {
-            unsigned int *row = gPc_Frame + y * PC_W;
-            for (x = 0; x < PC_W; x++)
+            unsigned int *row = gPc_Frame + y * PC_FRAME_W;
+            for (x = 0; x < vw; x++)
                 row[x] = 0xFFFFFFFFu;
         }
         return;
     }
 
     for (y = 0; y < PC_H; y++) {
-        unsigned int *row = gPc_Frame + y * PC_W;
-        const s16 *win = gWinBufferPtr; // sBuffer pairs: [WIN0H,WN1H] per line
-        s16 w0v = 0, w1v = 0;
+        unsigned int *row = gPc_Frame + y * PC_FRAME_W;
+        const s16 *win = gWinBufferPtr; // [WIN0H, WIN1H, WIN1x1, WIN1x2] per line (PC)
+        s16 w0v = 0, w1x1 = 0, w1x2 = 0;
         if (win != NULL && gDrawWindow) {
-            w0v = win[y * 2];
-            w1v = win[y * 2 + 1];
+            w0v = win[y * 4];
+            w1x1 = win[y * 4 + 2];
+            w1x2 = win[y * 4 + 3];
         }
 
         // Build the per-row active-sprite list once.
@@ -399,7 +469,7 @@ static void Pc_RenderFrame(void) {
             if (bgOn[i])
                 prioBg[bgPrio[i]][prioBgN[bgPrio[i]]++] = i;
 
-        for (x = 0; x < PC_W; x++) {
+        for (x = 0; x < vw; x++) {
             int region = REGION_OUTSIDE;
             int layerBits, effectOn;
             unsigned int rgba;
@@ -407,7 +477,7 @@ static void Pc_RenderFrame(void) {
             if (winAny) {
                 if (win0On && Pc_InWin(x, w0v))
                     region = REGION_WIN0;
-                else if (win1On && Pc_InWin(x, w1v))
+                else if (win1On && Pc_InWinRange(x, w1x1, w1x2))
                     region = REGION_WIN1;
                 else if (objWinOn && region == REGION_OUTSIDE) {
                     // OBJ window: covered by any objMode==2 opaque pixel.
@@ -466,12 +536,31 @@ static void Pc_RenderFrame(void) {
                 int bi;
                 for (bi = 0; bi < nb; bi++) {
                     unsigned pal;
+                    const u16 *map;
+                    int mapW, mapStride;
                     i = prioBg[p][bi];
                     if (!(layerBits & (1 << i)))
                         continue;
-                    if (Pc_BgPixel(vram, (bgCnt[i] >> 2) & 3, (bgCnt[i] >> 7) & 1,
-                                   (bgCnt[i] >> 8) & 0x1F, bgHofs[i], bgVofs[i],
-                                   x, y, &pal)) {
+                    // BG2/BG3 come from the wide-capable tilemap array while a
+                    // dungeon/ground scene owns them; otherwise (and for the
+                    // UI BGs 0/1) use the classic VRAM screenbase map. The
+                    // wide array is always PC_TILEMAP_COLS wide, so classic
+                    // 240 mode reads the same 32 columns it used to, and
+                    // widescreen reads the full 64-column logical map.
+                    if (i >= 2 && wideBgs) {
+                        map = &gPc_WideTilemaps[i][0][0];
+                        mapW = PC_TILEMAP_COLS;
+                        mapStride = PC_TILEMAP_COLS;
+                    } else {
+                        map = (const u16 *)(vram + ((bgCnt[i] >> 8) & 0x1F) * 0x800);
+                        mapW = 32;
+                        mapStride = 32;
+                    }
+                    if (i <= 1 && x >= PC_CLASSIC_W)
+                        continue; // UI BGs stay within the classic 240px
+                    if (Pc_BgPixel(vram, map, mapW, mapStride,
+                                   (bgCnt[i] >> 2) & 3, (bgCnt[i] >> 7) & 1,
+                                   bgHofs[i], bgVofs[i], x, y, &pal)) {
                         under = (topLayer < 0) ? pltt[0] : top; // layer below
                         top = pltt[pal];
                         topLayer = i;
@@ -550,29 +639,32 @@ void Pc_VideoPresent(void) {
     gPc_FrameNo++;
 #ifdef HAVE_SDL2
     if (sTex != NULL) {
-        SDL_Rect dst;
+        SDL_Rect dst, src;
         int winW, winH, scale;
+        int vw = Pc_ViewW();
 
-        SDL_UpdateTexture(sTex, NULL, gPc_Frame, PC_W * (int)sizeof(gPc_Frame[0]));
+        src.x = 0; src.y = 0;
+        src.w = vw; src.h = PC_H;
+        SDL_UpdateTexture(sTex, &src, gPc_Frame, PC_FRAME_W * (int)sizeof(gPc_Frame[0]));
         SDL_SetRenderDrawColor(sRen, gPc_Letterbox[0], gPc_Letterbox[1],
                                gPc_Letterbox[2], 255);
         SDL_RenderClear(sRen);
-        // Aspect-preserving blit of the 240x160 frame. No SDL logical-size
+        // Aspect-preserving blit of the current-width frame. No SDL logical-size
         // transform: the ImGui overlay draws in window pixels, so ImGui's
         // mouse/hit-testing stays exactly aligned with its output.
         SDL_GetWindowSize(sWin, &winW, &winH);
         switch (gPc_ScaleMode) {
         case PC_SCALE_FIT: {
             // Fractional scale to fit the window, aspect preserved.
-            double sx = (double)winW / PC_W;
+            double sx = (double)winW / vw;
             double sy = (double)winH / PC_H;
             double s = sx < sy ? sx : sy;
             if (s < 1.0 / PC_VIDEO_SCALE_MAX) {
                 // Window too small to fill a 1/8th frame; keep it visible.
-                dst.w = PC_W / PC_VIDEO_SCALE_MAX;
+                dst.w = vw / PC_VIDEO_SCALE_MAX;
                 dst.h = PC_H / PC_VIDEO_SCALE_MAX;
             } else {
-                dst.w = (int)(PC_W * s);
+                dst.w = (int)(vw * s);
                 dst.h = (int)(PC_H * s);
             }
             dst.x = (winW - dst.w) / 2;
@@ -587,16 +679,16 @@ void Pc_VideoPresent(void) {
             break;
         case PC_SCALE_INTEGER:
         default:
-            scale = (winW / PC_W < winH / PC_H) ? winW / PC_W : winH / PC_H;
+            scale = (winW / vw < winH / PC_H) ? winW / vw : winH / PC_H;
             if (scale < 1)
                 scale = 1;
-            dst.w = PC_W * scale;
+            dst.w = vw * scale;
             dst.h = PC_H * scale;
             dst.x = (winW - dst.w) / 2;
             dst.y = (winH - dst.h) / 2;
             break;
         }
-        SDL_RenderCopy(sRen, sTex, NULL, &dst);
+        SDL_RenderCopy(sRen, sTex, &src, &dst);
         if (Pc_UiIsActive())
             Pc_UiRender(); // window-pixel overlay on top
         SDL_RenderPresent(sRen);
@@ -618,12 +710,13 @@ void Pc_VideoShutdown(void) {
 void Pc_VideoDumpPPM(const char *path) {
     FILE *f = fopen(path, "wb");
     unsigned x, y;
+    int vw = Pc_ViewW();
     if (f == NULL)
         return;
-    fprintf(f, "P6\n%d %d\n255\n", PC_W, PC_H);
+    fprintf(f, "P6\n%d %d\n255\n", vw, PC_H);
     for (y = 0; y < PC_H; y++)
-        for (x = 0; x < PC_W; x++) {
-            unsigned int c = gPc_Frame[y * PC_W + x];
+        for (x = 0; x < (unsigned)vw; x++) {
+            unsigned int c = gPc_Frame[y * PC_FRAME_W + x];
             unsigned char px[3];
             px[0] = (unsigned char)(c & 0xFF);
             px[1] = (unsigned char)((c >> 8) & 0xFF);

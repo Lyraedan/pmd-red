@@ -20,6 +20,38 @@
 #include "dungeon_pos_data.h"
 #include "dungeon_data.h"
 #include "dungeon_8041AD0.h"
+#include "pc_widescreen.h"
+
+// Widescreen BG2/BG3 tilemap redirection. On the GBA this resolves to the
+// classic gBgTilemaps so the ROM build is unchanged; on PC it points at the
+// 64-column gPc_WideTilemaps the compositor samples beyond 240px.
+#ifdef PLATFORM_PC
+#define PC_TILEMAP(layer) gPc_WideTilemaps[layer]
+// Wrap a tilemap column into [0, PC_TILEMAP_COLS). The buffer is wider than the
+// visible window (64 vs 48 cols) so scrolling strips can pre-fill edge margins
+// exactly like the GBA's 32-col buffer around its 30-col window. The original
+// `& 0x1F` also handled negative columns (camera near the left map edge) by
+// two's-complement wrap; modulo needs an explicit adjust to stay non-negative.
+#define PC_MASK_COL(x) do { (x) %= PC_TILEMAP_COLS; if ((x) < 0) (x) += PC_TILEMAP_COLS; } while (0)
+#define PC_MARK_WIDE() Pc_WideBgsMark()
+// Closed forms of the gUnknown_80F6A4A/80F6C06[30+v] lookups (v mod 3 and
+// floor(v/3), matching the tables including negative v) without the tables'
+// index ceiling, so the wide tilemap can be 48 columns.
+#define PC_CELL_SUB(v) ((((v) % 3) + 3) % 3)
+#define PC_CELL_COL(v) ((v) >= 0 ? (v) / 3 : -((2 - (v)) / 3))
+#define PC_FULL_COLS() (Pc_WidescreenOn() ? (Pc_ViewW8() + 1) : 31)  // GBA: 30 visible + 1 margin
+#define PC_STRIP_COLS() (Pc_WidescreenOn() ? (Pc_ViewW8() + 1) : 31) // GBA: 30 visible + 1 margin
+#define PC_CLEAR_COLS() (Pc_WidescreenOn() ? Pc_ViewW8() : 32) // full-clear cols (GBA: 32)
+#else
+#define PC_TILEMAP(layer) gBgTilemaps[layer]
+#define PC_MASK_COL(x) ((x) &= 0x1F)
+#define PC_MARK_WIDE()
+#define PC_CELL_SUB(v) (gUnknown_80F6A4A[30 + (v)])
+#define PC_CELL_COL(v) (gUnknown_80F6C06[30 + (v)])
+#define PC_FULL_COLS() 31
+#define PC_STRIP_COLS() 31
+#define PC_CLEAR_COLS() 32
+#endif
 
 EWRAM_DATA OpenedFile *gDungeonPaletteFile = {0};
 EWRAM_DATA AnimatedColor gDungeonAnimatedColors[32] = {0};
@@ -492,15 +524,15 @@ void UpdateTrapsVisibility(void)
     hallucinating = dungeon->unk181e8.hallucinating;
     showInvisibleTrapsMonsters = dungeon->unk181e8.showInvisibleTrapsMonsters;
     x = dungeon->unk181e8.cameraPixelPos.x >> 3;
-    r10 = gUnknown_80F6A4A[30 + x];
-    var_48 = gUnknown_80F6C06[30 + x];
+    r10 = PC_CELL_SUB(x);
+    var_48 = PC_CELL_COL(x);
 
-    for (i = 0; i <= 30; i++) {
+    for (i = 0; i < PC_FULL_COLS(); i++) {
 
         y = (dungeon->unk181e8.cameraPixelPos.y >> 3) - 1;
-        x &= 0x1F;
-        r8 = gUnknown_80F6A4A[30 + y];
-        var_44 = gUnknown_80F6C06[30 + y];
+        PC_MASK_COL(x);
+        r8 = PC_CELL_SUB(y);
+        var_44 = PC_CELL_COL(y);
         r7 = r10 + (r8 * 3);
         tile = GetTile(var_48, var_44);
         if (tile->terrainFlags & TERRAIN_TYPE_UNK_x1000) {
@@ -538,7 +570,7 @@ void UpdateTrapsVisibility(void)
 
         for (j = 0; j < 23; j++) {
             y &= 0x1F;
-            gBgTilemaps[3][y][x] = *src;
+            PC_TILEMAP(3)[y][x] = *src;
             src += 3;
             y++;
             r8++;
@@ -590,6 +622,7 @@ void UpdateTrapsVisibility(void)
         }
     }
 
+    PC_MARK_WIDE();
     ScheduleBgTilemapCopy(3);
 }
 
@@ -615,10 +648,10 @@ void sub_804A1F0(s32 a0, s32 a1)
     yTemp >>= 3;
     x = xTemp >> 3;
     y = yTemp - 1;
-    var_28 = gUnknown_80F6A4A[30 + x];
-    var_2C = gUnknown_80F6C06[30 + x];
-    r8 = gUnknown_80F6A4A[30 + y];
-    r10 = gUnknown_80F6C06[30 + y];
+    var_28 = PC_CELL_SUB(x);
+    var_2C = PC_CELL_COL(x);
+    r8 = PC_CELL_SUB(y);
+    r10 = PC_CELL_COL(y);
     r6 = var_28 + r8 * 3;
     tile = GetTile(var_2C, r10);
     if (tile->terrainFlags & TERRAIN_TYPE_SHOP) {
@@ -651,9 +684,9 @@ void sub_804A1F0(s32 a0, s32 a1)
     }
 
     for (i = 0; i < 23; i++) {
-        x &= 0x1F;
+        PC_MASK_COL(x);
         y &= 0x1F;
-        gBgTilemaps[3][y][x] = *src;
+        PC_TILEMAP(3)[y][x] = *src;
         src += 3;
         y++;
         r8++;
@@ -692,6 +725,7 @@ void sub_804A1F0(s32 a0, s32 a1)
             }
         }
     }
+    PC_MARK_WIDE();
     ScheduleBgTilemapCopy(3);
 }
 
@@ -716,10 +750,10 @@ void sub_804A49C(s32 a0, s32 a1)
     yTemp = dungeon->unk181e8.cameraPixelPos.y + a1;
     x = xTemp >> 3;
     y = yTemp >> 3;
-    r9 = gUnknown_80F6A4A[30 + x];
-    r10 = gUnknown_80F6C06[30 + x];
-    var_28 = gUnknown_80F6A4A[30 + y];
-    var_2C = gUnknown_80F6C06[30 + y];
+    r9 = PC_CELL_SUB(x);
+    r10 = PC_CELL_COL(x);
+    var_28 = PC_CELL_SUB(y);
+    var_2C = PC_CELL_COL(y);
     r6 = r9 + var_28 * 3;
     tile = GetTile(r10, var_2C);
     if (tile->terrainFlags & TERRAIN_TYPE_SHOP) {
@@ -751,10 +785,10 @@ void sub_804A49C(s32 a0, s32 a1)
         }
     }
 
-    for (i = 0; i < 31; i++) {
-        x &= 0x1F;
+    for (i = 0; i < PC_STRIP_COLS(); i++) {
+        PC_MASK_COL(x);
         y &= 0x1F;
-        gBgTilemaps[3][y][x] = *src;
+        PC_TILEMAP(3)[y][x] = *src;
         src++;
         x++;
         r9++;
@@ -793,6 +827,7 @@ void sub_804A49C(s32 a0, s32 a1)
             }
         }
     }
+    PC_MARK_WIDE();
     ScheduleBgTilemapCopy(3);
 }
 
@@ -826,13 +861,13 @@ void ChangeDungeonCameraPos(DungeonPos *pos, s32 a1, u8 a2, u8 a3)
         i += adjacentX;
         j += adjacentY;
     }
-    var_38 = gUnknown_80F6A4A[30 + x2];
-    r10 = gUnknown_80F6C06[30 + x2];
+    var_38 = PC_CELL_SUB(x2);
+    r10 = PC_CELL_COL(x2);
 
-    for (i = 0; i < 31; i++) {
+    for (i = 0; i < PC_STRIP_COLS(); i++) {
         y = dungeon->unk181e8.cameraPixelPos.y >> 3;
-        var_34 = gUnknown_80F6A4A[30 + y];
-        r9 = gUnknown_80F6C06[30 + y];
+        var_34 = PC_CELL_SUB(y);
+        r9 = PC_CELL_COL(y);
         r5 = var_38 + var_34 * 3;
         var_48.x = r10;
         var_48.y = r9;
@@ -866,9 +901,9 @@ void ChangeDungeonCameraPos(DungeonPos *pos, s32 a1, u8 a2, u8 a3)
         }
 
         for (j = 0; j < 21; j++) {
-            x &= 0x1F;
+            PC_MASK_COL(x);
             y &= 0x1F;
-            gBgTilemaps[2][y][x] = *src;
+            PC_TILEMAP(2)[y][x] = *src;
             src += 3;
             y++;
             var_34++;
@@ -917,6 +952,7 @@ void ChangeDungeonCameraPos(DungeonPos *pos, s32 a1, u8 a2, u8 a3)
         }
     }
 
+    PC_MARK_WIDE();
     ScheduleBgTilemapCopy(2);
 }
 
@@ -926,9 +962,9 @@ void sub_804AA60(void)
     s32 j;
     for(i = 0; i < 0x20; i++)
     {
-        for(j = 0; j < 0x20; j++)
+        for(j = 0; j < PC_CLEAR_COLS(); j++)
         {
-            gBgTilemaps[2][i][j] = 0;
+            PC_TILEMAP(2)[i][j] = 0;
         }
     }
     ScheduleBgTilemapCopy(2);

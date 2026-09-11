@@ -1,5 +1,6 @@
 #include "global.h"
 #include "globaldata.h"
+#include "pc_widescreen.h"
 #include "dungeon_pokemon_sprites.h"
 #include "structs/sprite_oam.h"
 #include "graphics_memory.h"
@@ -283,7 +284,7 @@ static void DrawStatusSprite(s16 species, s32 status, DungeonPos *pos, DungeonPo
     posX = (pos->x - gfxInfo->width  * 4 - posScreen->x) + posOffset->x;
     posY = (pos->y - gfxInfo->height * 4 - posScreen->y) + posOffset->y;
     ySubbed = posY - 16;
-    if (posX >= -32 && posY >= -32 && posX < 240 && posY < 160) {
+    if (posX >= -32 && posY >= -32 && posX < PC_VIEW_W() && posY < 160) {
         switch (spriteInfo.gfxIndex) {
             case STATUS_GFX_SLEEPLESS:
             case STATUS_GFX_BLINKER:

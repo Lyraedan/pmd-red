@@ -32,6 +32,14 @@ EWRAM_DATA u8 gDrawTextShadow = 0;
 // 4 bgs, 32x32 tiles, y dimension goes before x [bgId][y][x]
 EWRAM_DATA ALIGNED(4) u16 gBgTilemaps[4][32][32] = {0};
 
+#ifdef PLATFORM_PC
+#include "pc_widescreen.h"
+// Widescreen BG2/BG3 tilemaps (see pc_widescreen.h). Classic 32-column data
+// lives in gBgTilemaps above; the dungeon/ground writers use this wider array
+// so the compositor can render beyond the GBA's 240px.
+EWRAM_DATA ALIGNED(4) u16 gPc_WideTilemaps[4][32][PC_TILEMAP_COLS] = {0};
+#endif
+
 EWRAM_INIT void (*ScrollDownWindowFunc)(s32 windowId) = ScrollDownWindow;
 EWRAM_INIT void (*ScrollUpWindowFunc)(s32 windowId) = ScrollUpWindow;
 EWRAM_INIT void (*gIwramTextFunc3)(s32 a0) = sub_82729A4;

@@ -53,6 +53,7 @@ void Pc_VideoSetScaleMode(int mode); // PC_SCALE_INTEGER/FIT/STRETCH
 void Pc_VideoSetSmoothing(int on);  // 0 nearest, 1 bilinear texture scaling
 void Pc_VideoSetLetterbox(int r, int g, int b); // backdrop color (0-255 each)
 void Pc_VideoResizeScale(int scale); // resize the window to 240*scale x 160*scale
+void Pc_VideoSetWidescreen(int on);  // toggle 384x160 widescreen (live)
 
 // ---- Input backend (input_pc.c) ----
 void Pc_InputInit(void);

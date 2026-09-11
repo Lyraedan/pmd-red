@@ -1,5 +1,6 @@
 #include "global.h"
 #include "globaldata.h"
+#include "pc_widescreen.h"
 #include "code_8099360.h"
 #include "ground_sprite.h"
 #include "structs/axdata.h"
@@ -305,7 +306,7 @@ bool8 IsOnscreen_80A675C(struct UnkGroundSpriteStruct *ptr, PixelPos *pixPosArg)
         result.y = (pixPosArg->y / 256);
     }
 
-    if (result.x >= -64 && result.x <= 303 && result.y >= -16 && result.y <= 207) {
+    if (result.x >= -64 && result.x <= PC_VIEW_W() + 63 && result.y >= -16 && result.y <= 207) {
         return TRUE;
     }
 
@@ -835,7 +836,7 @@ bool8 sub_80A7094(struct UnkGroundSpriteStruct *ptr, PixelPos *r10, PixelPos *po
 
     resultPos = (PixelPos) {(posArg->x / 256) - gUnknown_2039DD8.x, (posArg->y / 256) - gUnknown_2039DD8.y};
     unkY = resultPos.y - (a3 / 256);
-    if (resultPos.x >= -64 && resultPos.x <= 303 && resultPos.y >= -16 && resultPos.y <= 207 && unkY >= -16 && unkY <= 207) {
+    if (resultPos.x >= -64 && resultPos.x <= PC_VIEW_W() + 63 && resultPos.y >= -16 && resultPos.y <= 207 && unkY >= -16 && unkY <= 207) {
         if ((ptr->flags_0x50 & 0x10) && (gUnknown_2039DCC & 1)) {
             sub_80A72B8(ptr, FALSE);
             DoAxFrame_800558C(&ptr->axdata, 304, 208, 0, ptr->unk68, &ptr->unk3C);

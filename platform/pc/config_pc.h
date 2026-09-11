@@ -84,6 +84,7 @@ typedef struct PcVideoPrefs
     int letterboxR;    // 0-255 backdrop color around the scaled frame
     int letterboxG;    // 0-255
     int letterboxB;    // 0-255
+    int widescreen;    // 0 = 240x160 classic, 1 = 384x160 widescreen
 } PcVideoPrefs;
 
 // Number of m4a music players (INDEX_BGM..INDEX_SE6; must match music.h).

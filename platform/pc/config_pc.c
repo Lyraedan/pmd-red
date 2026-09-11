@@ -128,6 +128,7 @@ static void Pc_ResetVideoDefault(void)
     sVideo.letterboxR = 0;
     sVideo.letterboxG = 0;
     sVideo.letterboxB = 0;
+    sVideo.widescreen = 0;
 }
 
 PcVideoPrefs *Pc_ConfigVideoPrefs(void)
@@ -324,6 +325,7 @@ void Pc_ConfigLoad(const char *exeDir)
             else if (strcmp(key, "LetterboxR") == 0) sVideo.letterboxR = v;
             else if (strcmp(key, "LetterboxG") == 0) sVideo.letterboxG = v;
             else if (strcmp(key, "LetterboxB") == 0) sVideo.letterboxB = v;
+            else if (strcmp(key, "Widescreen") == 0) sVideo.widescreen = v;
         } else if (strcmp(section, "Audio") == 0) {
             int v = atoi(val);
             int p;
@@ -390,6 +392,7 @@ void Pc_ConfigSave(void)
     fprintf(f, "LetterboxR=%d\n", sVideo.letterboxR);
     fprintf(f, "LetterboxG=%d\n", sVideo.letterboxG);
     fprintf(f, "LetterboxB=%d\n", sVideo.letterboxB);
+    fprintf(f, "Widescreen=%d\n", sVideo.widescreen);
     fprintf(f, "[Audio]\n");
     fprintf(f, "MasterVolume=%d\n", sAudio.masterVolume);
     fprintf(f, "Muted=%d\n", sAudio.muted);

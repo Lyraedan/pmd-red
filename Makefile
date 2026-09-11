@@ -99,8 +99,8 @@ ifeq ($(MODERN),0)
   else
     LIB := -L ../../tools/agbcc/lib -lc -lgcc -L ../../libagbsyscall -lagbsyscall
   endif
-  INCLUDE_PATHS   := -I include -I tools/agbcc/include
-  CPPFLAGS        := -iquote include -I tools/agbcc/include -nostdinc -undef -std=gnu89
+  INCLUDE_PATHS   := -I include -I platform/pc -I tools/agbcc/include
+  CPPFLAGS        := -iquote include -iquote platform/pc -I tools/agbcc/include -nostdinc -undef -std=gnu89
 else
   MODERNCC := $(PREFIX)gcc
   PATH_MODERNCC := PATH="$(PATH)" $(MODERNCC)
@@ -108,7 +108,7 @@ else
   LIBPATH := -L "$(dir $(shell $(PATH_MODERNCC) -mthumb -print-file-name=libgcc.a))" -L "$(dir $(shell $(PATH_MODERNCC) -mthumb -print-file-name=libnosys.a))" -L "$(dir $(shell $(PATH_MODERNCC) -mthumb -print-file-name=libc.a))"
   LIB := $(LIBPATH) -lc -lnosys -lgcc -L../../libagbsyscall -lagbsyscall
   override CC1FLAGS += -mthumb -mthumb-interwork -mabi=apcs-gnu -mtune=arm7tdmi -march=armv4t -Wimplicit -Wparentheses -Wunused -Werror -O2 -g
-  INCLUDE_DIRS := include
+  INCLUDE_DIRS := include platform/pc
   INCLUDE_CPP_ARGS := $(INCLUDE_DIRS:%=-iquote %)
   INCLUDE_PATHS := $(INCLUDE_DIRS:%=-I %)
   CPPFLAGS := $(INCLUDE_CPP_ARGS) -Wno-trigraphs -DMODERN=$(MODERN)

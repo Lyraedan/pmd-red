@@ -1,5 +1,6 @@
 #include "global.h"
 #include "globaldata.h"
+#include "pc_widescreen.h"
 #include "dungeon_vram.h"
 #include "structs/str_dungeon.h"
 #include "bg_control.h"
@@ -730,7 +731,7 @@ static void sub_803EDF0(void)
     y2 = (gDungeon->unk181e8.cameraPixelPos.y + 24);
     y = y1 - y2;
 
-    if (x >= -32 && y >= -8 && x < 240 && y < 160) {
+    if (x >= -32 && y >= -8 && x < PC_VIEW_W() && y < 160) {
         SpriteSetY(&gUnknown_202EDDC, y);
         SpriteSetAffine1(&gUnknown_202EDDC, 0);
         SpriteSetAffine2(&gUnknown_202EDDC, 0);

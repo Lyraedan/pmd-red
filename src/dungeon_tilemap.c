@@ -1,6 +1,7 @@
 #include "global.h"
 #include "globaldata.h"
 #include "dungeon_tilemap.h"
+#include "pc_widescreen.h"
 #include "constants/item.h"
 #include "constants/status.h"
 #include "bg_control.h"
@@ -122,7 +123,7 @@ bool8 sub_803F428(DungeonPos *pos)
     UnkDungeonGlobal_unk181E8_sub *strPtr = &gDungeon->unk181e8;
     Entity *cameraEntity = strPtr->cameraTarget;
 
-    if (abs(strPtr->cameraPos.x - pos->x) <= 6 && abs(strPtr->cameraPos.y - pos->y) <= 5) {
+    if (abs(strPtr->cameraPos.x - pos->x) <= PC_CAM_TILES_HALF && abs(strPtr->cameraPos.y - pos->y) <= 5) {
         if (strPtr->allTilesRevealed == 0 && strPtr->unk1820C == 0 && cameraEntity != NULL) {
             return IsPositionActuallyInSight(&strPtr->cameraPos, pos);
         }
@@ -194,7 +195,7 @@ void UpdateCamera(u8 a0)
         strPtr->cameraPos.x = cameraTarget->pos.x;
         strPtr->cameraPos.y = cameraTarget->pos.y;
 
-        strPtr->cameraPixelPos.x = (cameraTarget->pixelPos.x / 256) - 120;
+        strPtr->cameraPixelPos.x = (cameraTarget->pixelPos.x / 256) - PC_CAM_CENTER_X;
         strPtr->cameraPixelPos.y = (cameraTarget->pixelPos.y / 256) - 96;
 
         if (HasHeldItem(cameraTarget, ITEM_X_RAY_SPECS) && info->isTeamLeader) {
@@ -267,7 +268,7 @@ void UpdateCamera(u8 a0)
             }
             else {
                 if (strPtr->cameraPixelPosMirror.x < strPtr->cameraPixelPos.x) {
-                    sub_804A1F0(240, 0);
+                    sub_804A1F0(PC_CAM_EDGE, 0);
                 }
                 else if (strPtr->cameraPixelPosMirror.x > strPtr->cameraPixelPos.x) {
                     sub_804A1F0(0, 0);
@@ -327,7 +328,7 @@ void sub_803F878(s32 a0, s32 a1)
 
     strPtr->cameraPixelPosMirror = strPtr->cameraPixelPos;
     strPtr->cameraPosMirror = strPtr->cameraPos;
-    strPtr->cameraPixelPos.x = (a0 / 256) - 120;
+    strPtr->cameraPixelPos.x = (a0 / 256) - PC_CAM_CENTER_X;
     strPtr->cameraPixelPos.y = (a1 / 256) - 96;
     strPtr->cameraPos.x = a0 / 6144;
     strPtr->cameraPos.y = a1 / 6144;
@@ -347,7 +348,7 @@ void sub_803F878(s32 a0, s32 a1)
     }
     else {
         if (strPtr->cameraPixelPosMirror.x < strPtr->cameraPixelPos.x) {
-            sub_804A1F0(240, 0);
+            sub_804A1F0(PC_CAM_EDGE, 0);
         }
         else if (strPtr->cameraPixelPosMirror.x > strPtr->cameraPixelPos.x) {
             sub_804A1F0(0, 0);
@@ -367,7 +368,7 @@ void sub_803F878(s32 a0, s32 a1)
 s32 GetCameraXPos(void)
 {
     UnkDungeonGlobal_unk181E8_sub *strPtr = &gDungeon->unk181e8;
-    return (strPtr->cameraPixelPos.x + 120) * 256;
+    return (strPtr->cameraPixelPos.x + PC_CAM_CENTER_X) * 256;
 }
 
 s32 GetCameraYPos(void)

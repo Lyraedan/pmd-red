@@ -1,5 +1,6 @@
 #include "global.h"
 #include "globaldata.h"
+#include "pc_widescreen.h"
 #include "trap.h"
 #include "dungeon_tilemap.h"
 #include "dungeon_8041AD0.h"
@@ -82,8 +83,8 @@ void sub_807FA9C(void)
     s32 x, y;
     bool8 showInvisibles = gDungeon->unk181e8.showInvisibleTrapsMonsters;
 
-    for (y = gDungeon->unk181e8.cameraPos.y - 5; y < gDungeon->unk181e8.cameraPos.y + 5; y++) {
-        for (x = gDungeon->unk181e8.cameraPos.x - 6; x < gDungeon->unk181e8.cameraPos.x + 6; x++) {
+for (y = gDungeon->unk181e8.cameraPos.y - 5; y < gDungeon->unk181e8.cameraPos.y + 5; y++) {
+        for (x = gDungeon->unk181e8.cameraPos.x - PC_TRAP_HALF; x < gDungeon->unk181e8.cameraPos.x + PC_TRAP_HALF; x++) {
             bool8 r6 = FALSE;
             const Tile *tile = GetTile(x, y);
 
@@ -97,7 +98,7 @@ void sub_807FA9C(void)
             if (r6) {
                 s32 spriteX = (x * 24) - gDungeon->unk181e8.cameraPixelPos.x;
                 s32 spriteY = (y * 24) - gDungeon->unk181e8.cameraPixelPos.y;
-                if (spriteX >= -32 && spriteY >= -32 && spriteX <= 272 && spriteY <= 192)  {
+                if (spriteX >= -32 && spriteY >= -32 && spriteX <= PC_VIEW_W() + 32 && spriteY <= 192)  {
                     SpriteSetObjMode(&gUnknown_202EDC0, 0);
                     SpriteSetY(&gUnknown_202EDC0, spriteY);
                     SpriteSetX(&gUnknown_202EDC0, spriteX);
