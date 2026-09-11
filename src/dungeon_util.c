@@ -243,7 +243,11 @@ Entity *sub_80453AC(s32 _species)
                 entity->axObj.info.monster->apparentID = apparentId;
                 entity->axObj.info.monster->isNotTeamMember = FALSE;
 
-                entity->axObj.spriteFile = GetSpriteData((s16)GetMonsterApparentID(NULL, species));
+                entity->axObj.spriteFile = GetSpriteData(apparentId);
+                if (entity->axObj.spriteFile == NULL) {
+                    LoadPokemonSprite(apparentId, TRUE);
+                    entity->axObj.spriteFile = GetSpriteData(apparentId);
+                }
                 entity->axObj.unk40_maybeAnimTimer = (validId  * 16) + 0x40;
                 entity->axObj.unk42_animId1 = 7;
                 entity->axObj.unk44_direction1 = 0;
@@ -305,6 +309,10 @@ Entity *sub_804550C(s32 _species)
                 entity->axObj.info.monster->isNotTeamMember = TRUE;
 
                 entity->axObj.spriteFile = GetSpriteData((s16)GetMonsterApparentID(NULL, species));
+                if (entity->axObj.spriteFile == NULL) {
+                    LoadPokemonSprite((s16)GetMonsterApparentID(NULL, species), TRUE);
+                    entity->axObj.spriteFile = GetSpriteData((s16)GetMonsterApparentID(NULL, species));
+                }
                 entity->axObj.unk40_maybeAnimTimer = ((validId + 6) * 16) + 0x40;
                 entity->axObj.unk42_animId1 = 7;
                 entity->axObj.unk44_direction1 = 0;

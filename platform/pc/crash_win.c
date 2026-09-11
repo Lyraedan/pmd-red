@@ -233,6 +233,17 @@ void Pc_FatalMessage(const char *msg)
 
 #ifdef _WIN32
 
+// Read a dword from the faulting process without risking a second exception
+// inside the crash handler (the frame/stack pointers may be corrupt).
+static unsigned long Pc_SafeRead32(const void *addr)
+{
+    if (addr == NULL)
+        return 0;
+    if (IsBadReadPtr(addr, sizeof(unsigned long)))
+        return 0;
+    return *(const unsigned long *)addr;
+}
+
 static LONG WINAPI Pc_WinException(PEXCEPTION_POINTERS ep)
 {
     ULONG_PTR ip = 0;
@@ -258,6 +269,21 @@ static LONG WINAPI Pc_WinException(PEXCEPTION_POINTERS ep)
                  (unsigned long)ep->ContextRecord->Edi,
                  (unsigned long)ep->ContextRecord->Ebp,
                  (unsigned long)ep->ContextRecord->Esp);
+    {
+        unsigned long ebp = (unsigned long)ep->ContextRecord->Ebp;
+        unsigned long sp = (unsigned long)ep->ContextRecord->Esp;
+        int i;
+        Pc_LogPrintf("frame: ret=%08lX arg1=%08lX arg2=%08lX arg3=%08lX arg4=%08lX\n",
+                     Pc_SafeRead32((const void *)(ebp + 4)),
+                     Pc_SafeRead32((const void *)(ebp + 8)),
+                     Pc_SafeRead32((const void *)(ebp + 0xc)),
+                     Pc_SafeRead32((const void *)(ebp + 0x10)),
+                     Pc_SafeRead32((const void *)(ebp + 0x14)));
+        Pc_LogPrintf("stack:");
+        for (i = 0; i < 16; i++)
+            Pc_LogPrintf(" %08lX", Pc_SafeRead32((const void *)(sp + i * 4)));
+        Pc_LogPrintf("\n");
+    }
 #elif defined(_M_X64)
     Pc_LogPrintf("regs rax=%016llX rbx=%016llX rcx=%016llX rdx=%016llX rsi=%016llX rdi=%016llX rbp=%016llX rsp=%016llX\n",
                  (unsigned long long)ep->ContextRecord->Rax,
@@ -268,6 +294,21 @@ static LONG WINAPI Pc_WinException(PEXCEPTION_POINTERS ep)
                  (unsigned long long)ep->ContextRecord->Rdi,
                  (unsigned long long)ep->ContextRecord->Rbp,
                  (unsigned long long)ep->ContextRecord->Rsp);
+    {
+        unsigned long long rbp = (unsigned long long)ep->ContextRecord->Rbp;
+        unsigned long long rsp = (unsigned long long)ep->ContextRecord->Rsp;
+        int i;
+        Pc_LogPrintf("frame: ret=%016llX arg1=%016llX arg2=%016llX arg3=%016llX arg4=%016llX\n",
+                     Pc_SafeRead32((const void *)(rbp + 8)),
+                     Pc_SafeRead32((const void *)(rbp + 0x10)),
+                     Pc_SafeRead32((const void *)(rbp + 0x18)),
+                     Pc_SafeRead32((const void *)(rbp + 0x20)),
+                     Pc_SafeRead32((const void *)(rbp + 0x28)));
+        Pc_LogPrintf("stack:");
+        for (i = 0; i < 16; i++)
+            Pc_LogPrintf(" %016llX", (unsigned long long)Pc_SafeRead32((const void *)(rsp + i * 8)));
+        Pc_LogPrintf("\n");
+    }
 #endif
     if (sLogFile != stderr) {
         fprintf(stderr, "pmd-red-game: unhandled exception 0x%08lX at %p (image base %p)\n",

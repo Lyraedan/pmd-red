@@ -126,12 +126,22 @@ void UpdateMonsterSprite(Entity *entity)
         }
 
         if (!decoySprite) {
-            s32 rnd = Rand32Bit() & 3;
+            s32 rnd;
+            if (entity->axObj.spriteFile == NULL) {
+                LoadPokemonSprite(entInfo->apparentID, TRUE);
+                entity->axObj.spriteFile = GetSpriteData(entInfo->apparentID);
+            }
+            rnd = Rand32Bit() & 3;
             AxResInitFile(&entity->axObj.axdata, entity->axObj.spriteFile, entity->axObj.unk42_animId1, entity->axObj.unk44_direction1, r7, rnd, FALSE);
         }
         else {
             OpenedFile *spriteData = GetSpriteData(MONSTER_DECOY);
-            s32 rnd = Rand32Bit() & 3;
+            s32 rnd;
+            if (spriteData == NULL) {
+                LoadPokemonSprite(MONSTER_DECOY, TRUE);
+                spriteData = GetSpriteData(MONSTER_DECOY);
+            }
+            rnd = Rand32Bit() & 3;
             AxResInitFile(&entity->axObj.axdata, spriteData, entity->axObj.unk42_animId1, entity->axObj.unk44_direction1, r7, rnd, FALSE);
         }
 
@@ -354,17 +364,29 @@ void sub_806CCB4(Entity *entity, u8 a1)
     entity->axObj.unk47 = 0;
     sVar1 = entity->axObj.unk40_maybeAnimTimer;
 
-    if (info->curseClassStatus.status != STATUS_DECOY && !flag)
+    if (entity->axObj.spriteFile == NULL) {
+        LoadPokemonSprite(info->apparentID, TRUE);
+        entity->axObj.spriteFile = GetSpriteData(info->apparentID);
+    }
+
+    if (info->curseClassStatus.status != STATUS_DECOY && !flag) {
         AxResInitFile(&entity->axObj.axdata,
                       entity->axObj.spriteFile, entity->axObj.unk42_animId1,
                       entity->axObj.unk44_direction1, sVar1,
                       Rand32Bit() & 3, FALSE);
-    else
+    }
+    else {
+        OpenedFile *spriteData = GetSpriteData(MONSTER_DECOY);
+        if (spriteData == NULL) {
+            LoadPokemonSprite(MONSTER_DECOY, TRUE);
+            spriteData = GetSpriteData(MONSTER_DECOY);
+        }
         AxResInitFile(&entity->axObj.axdata,
-                      GetSpriteData(MONSTER_DECOY),
+                      spriteData,
                       entity->axObj.unk42_animId1,
                       entity->axObj.unk44_direction1, sVar1, Rand32Bit() & 3,
                       FALSE);
+    }
 
     entity->axObj.unk46 = 0;
 }

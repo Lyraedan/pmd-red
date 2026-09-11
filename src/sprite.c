@@ -475,6 +475,8 @@ static void sub_800533C(const ax_pose *const *a0, const ax_sprite *const *a1, ax
 // arm9.bin::02001D58
 void AxResInitFile(axdata *a0, OpenedFile *a1, u32 a2, u32 a3, u32 a4, u32 spriteAnimIndex, bool8 a6)
 {
+    if (a1 == NULL || a1->data == NULL)
+        return;
     AxResInit(a0, (axmain *)a1->data, a2, a3, a4, spriteAnimIndex, a6);
 }
 
@@ -505,6 +507,8 @@ void AxResInit(axdata *a0, axmain *a1, u32 a2, u32 direction, u32 a4, u32 sprite
 // arm9.bin::02001C9C
 void AxResInitUnorientedFile(axdata *a0, OpenedFile *a1, u32 a2, u32 a3, u32 spriteAnimIndex, bool8 a5)
 {
+    if (a1 == NULL || a1->data == NULL)
+        return;
     AxResInitUnoriented(a0, (EfoFileData *)a1->data, a2, a3, spriteAnimIndex, a5);
 }
 

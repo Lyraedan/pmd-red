@@ -667,6 +667,10 @@ void UpdateEntitySpecies(Entity *entity, s32 _species)
     GetEntInfo(entity)->apparentID = (s16) (apparentSpeciesMatch);
     GetEntInfo(entity)->id =  speciesMatch;
     entity->axObj.spriteFile = GetSpriteData(apparentSpecies);
+    if (entity->axObj.spriteFile == NULL) {
+        LoadPokemonSprite(apparentSpecies, TRUE);
+        entity->axObj.spriteFile = GetSpriteData(apparentSpecies);
+    }
 }
 
     entity->axObj.unk42_animId1 = 7;
