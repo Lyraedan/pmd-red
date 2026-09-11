@@ -42,6 +42,10 @@
 #define PC_FULL_COLS() (Pc_WidescreenOn() ? (Pc_ViewW8() + 1) : 31)  // GBA: 30 visible + 1 margin
 #define PC_STRIP_COLS() (Pc_WidescreenOn() ? (Pc_ViewW8() + 1) : 31) // GBA: 30 visible + 1 margin
 #define PC_CLEAR_COLS() (Pc_WidescreenOn() ? Pc_ViewW8() : 32) // full-clear cols (GBA: 32)
+// Vertical extents: GBA writes 23 rows for a 20-row screen (3 margin) and 21
+// for the BG2 overlay; widescreen scales those to the 27-row screen.
+#define PC_FULL_ROWS() (Pc_WidescreenOn() ? (Pc_ViewH8() + 3) : 23)
+#define PC_OVERLAY_ROWS() (Pc_WidescreenOn() ? (Pc_ViewH8() + 2) : 21)
 #else
 #define PC_TILEMAP(layer) gBgTilemaps[layer]
 #define PC_MASK_COL(x) ((x) &= 0x1F)
@@ -51,6 +55,8 @@
 #define PC_FULL_COLS() 31
 #define PC_STRIP_COLS() 31
 #define PC_CLEAR_COLS() 32
+#define PC_FULL_ROWS() 23
+#define PC_OVERLAY_ROWS() 21
 #endif
 
 EWRAM_DATA OpenedFile *gDungeonPaletteFile = {0};
@@ -568,7 +574,7 @@ void UpdateTrapsVisibility(void)
         }
 
 
-        for (j = 0; j < 23; j++) {
+        for (j = 0; j < PC_FULL_ROWS(); j++) {
             y &= 0x1F;
             PC_TILEMAP(3)[y][x] = *src;
             src += 3;
@@ -683,7 +689,7 @@ void sub_804A1F0(s32 a0, s32 a1)
         }
     }
 
-    for (i = 0; i < 23; i++) {
+    for (i = 0; i < PC_FULL_ROWS(); i++) {
         PC_MASK_COL(x);
         y &= 0x1F;
         PC_TILEMAP(3)[y][x] = *src;
@@ -900,7 +906,7 @@ void ChangeDungeonCameraPos(DungeonPos *pos, s32 a1, u8 a2, u8 a3)
             src = &dungeon->unk13554[r5];
         }
 
-        for (j = 0; j < 21; j++) {
+        for (j = 0; j < PC_OVERLAY_ROWS(); j++) {
             PC_MASK_COL(x);
             y &= 0x1F;
             PC_TILEMAP(2)[y][x] = *src;

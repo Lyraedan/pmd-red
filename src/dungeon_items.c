@@ -393,7 +393,7 @@ bool8 sub_80462AC(Entity * entity, u8 hallucinating, u8 a2, u8 a3, u8 a4)
     y2 = ((entity->pixelPos.y / 256) - gDungeon->unk181e8.cameraPixelPos.y) + 8;
     y2 /= 2;
 
-    if (x >= -32 && y >= -32 && x <= PC_VIEW_W() + 32 && y <= 192) {
+    if (x >= -32 && y >= -32 && x <= PC_VIEW_W() + 32 && y <= PC_VIEW_H() + 32) {
         s32 tileNum;
 
         SpriteSetMatrixNum(&gUnknown_202EDC0, 0);

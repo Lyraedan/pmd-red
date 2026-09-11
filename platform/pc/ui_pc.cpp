@@ -393,12 +393,12 @@ static void Pc_UiGraphicsTab(void) {
     ImGui::TextDisabled("Multiplier of the 240x160 internal frame.\nResizes the window immediately.");
 
     b = vp->widescreen != 0;
-    if (ImGui::Checkbox("Widescreen (384x160)", &b)) {
+    if (ImGui::Checkbox("Widescreen (384x216)", &b)) {
         vp->widescreen = b ? 1 : 0;
         Pc_VideoSetWidescreen(b ? 1 : 0);
         Pc_ConfigSave();
     }
-    ImGui::TextDisabled("Widen the dungeon and town view beyond the GBA's 240px.\nUI/menus keep their original 240px layout.");
+    ImGui::TextDisabled("Widen the dungeon and town view beyond the GBA's 240x160.\nUI/menus keep their original 240x160 layout.");
 
     b = vp->fullscreen != 0;
     if (ImGui::Checkbox("Fullscreen", &b)) {

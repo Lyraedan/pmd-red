@@ -42,6 +42,8 @@ static int gPc_WideBgsActive = 0;
 
 int Pc_ViewW(void) { return gPc_Widescreen ? PC_WIDE_W : PC_CLASSIC_W; }
 int Pc_ViewW8(void) { return gPc_Widescreen ? PC_WIDE_W8 : PC_CLASSIC_W8; }
+int Pc_ViewH(void) { return gPc_Widescreen ? PC_WIDE_H : PC_CLASSIC_H; }
+int Pc_ViewH8(void) { return gPc_Widescreen ? PC_WIDE_H8 : PC_CLASSIC_H8; }
 int Pc_WidescreenOn(void) { return gPc_Widescreen; }
 void Pc_SetWidescreen(int on) {
     gPc_Widescreen = on ? 1 : 0;
@@ -59,12 +61,12 @@ void Pc_WideBgsClear(void) {
                (PC_TILEMAP_COLS - PC_CLASSIC_W8) * sizeof(unsigned short));
 }
 
-#define PC_H 160
-// Max render width: wide BGs have PC_TILEMAP_COLS (512px) of tilemap; the
-// visible window is clamped to Pc_ViewW().
+// Max render width/height: wide BGs have PC_TILEMAP_COLS x PC_TILEMAP_ROWS of
+// tilemap (512x256px); the visible window is clamped to Pc_ViewW() x Pc_ViewH().
 #define PC_FRAME_W (PC_TILEMAP_COLS * 8)
+#define PC_FRAME_H (PC_TILEMAP_ROWS * 8)
 
-static unsigned int gPc_Frame[PC_FRAME_W * PC_H];
+static unsigned int gPc_Frame[PC_FRAME_W * PC_FRAME_H];
 static int gPc_Scale = 3;
 static int gPc_ScaleMode = PC_SCALE_INTEGER;
 static int gPc_Smoothing = 0;
@@ -149,9 +151,9 @@ void Pc_VideoInit(int scale) {
         if (vp->vsync)
             rflags |= SDL_RENDERER_PRESENTVSYNC;
         sWin = SDL_CreateWindow("pmd-red-pc", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                Pc_ViewW() * gPc_Scale, PC_H * gPc_Scale, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+                                Pc_ViewW() * gPc_Scale, Pc_ViewH() * gPc_Scale, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
         sRen = SDL_CreateRenderer(sWin, -1, rflags);
-        sTex = SDL_CreateTexture(sRen, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, PC_FRAME_W, PC_H);
+        sTex = SDL_CreateTexture(sRen, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, PC_FRAME_W, PC_FRAME_H);
     }
     Pc_VideoSetSmoothing(gPc_Smoothing);
     if (vp->fullscreen)
@@ -225,7 +227,7 @@ void Pc_VideoResizeScale(int scale) {
     if (sWin != NULL) {
         // Don't fight a fullscreen session; it shows the desktop size anyway.
         if (!(SDL_GetWindowFlags(sWin) & SDL_WINDOW_FULLSCREEN_DESKTOP))
-            SDL_SetWindowSize(sWin, Pc_ViewW() * scale, PC_H * scale);
+            SDL_SetWindowSize(sWin, Pc_ViewW() * scale, Pc_ViewH() * scale);
     }
 #else
     (void)scale;
@@ -239,7 +241,7 @@ void Pc_VideoSetWidescreen(int on) {
 #ifdef HAVE_SDL2
     if (sWin != NULL) {
         if (!(SDL_GetWindowFlags(sWin) & SDL_WINDOW_FULLSCREEN_DESKTOP))
-            SDL_SetWindowSize(sWin, Pc_ViewW() * gPc_Scale, PC_H * gPc_Scale);
+            SDL_SetWindowSize(sWin, Pc_ViewW() * gPc_Scale, Pc_ViewH() * gPc_Scale);
     }
 #else
     (void)on;
@@ -419,7 +421,7 @@ static void Pc_RenderFrame(void) {
 
     if (disp & DISPCNT_FORCED_BLANK) {
         // Forced blank displays white lines.
-        for (y = 0; y < PC_H; y++) {
+        for (y = 0; y < Pc_ViewH(); y++) {
             unsigned int *row = gPc_Frame + y * PC_FRAME_W;
             for (x = 0; x < vw; x++)
                 row[x] = 0xFFFFFFFFu;
@@ -427,7 +429,7 @@ static void Pc_RenderFrame(void) {
         return;
     }
 
-    for (y = 0; y < PC_H; y++) {
+    for (y = 0; y < Pc_ViewH(); y++) {
         unsigned int *row = gPc_Frame + y * PC_FRAME_W;
         const s16 *win = gWinBufferPtr; // [WIN0H, WIN1H, WIN1x1, WIN1x2] per line (PC)
         s16 w0v = 0, w1x1 = 0, w1x2 = 0;
@@ -445,7 +447,7 @@ static void Pc_RenderFrame(void) {
             for (s = 0; s < 128; s++) {
                 const struct OamData *o = &oam[s];
                 int w, h, ox, oy;
-                if (o->objMode == 2 || (int)o->y >= PC_H)
+                if (o->objMode == 2 || (int)o->y >= Pc_ViewH())
                     continue;
                 w = sObjW[(o->shape << 2) | o->size];
                 h = sObjH[(o->shape << 2) | o->size];
@@ -556,8 +558,8 @@ static void Pc_RenderFrame(void) {
                         mapW = 32;
                         mapStride = 32;
                     }
-                    if (i <= 1 && x >= PC_CLASSIC_W)
-                        continue; // UI BGs stay within the classic 240px
+                    if (i <= 1 && (x >= PC_CLASSIC_W || y >= PC_CLASSIC_H))
+                        continue; // UI BGs stay within the classic 240x160 view
                     if (Pc_BgPixel(vram, map, mapW, mapStride,
                                    (bgCnt[i] >> 2) & 3, (bgCnt[i] >> 7) & 1,
                                    bgHofs[i], bgVofs[i], x, y, &pal)) {
@@ -644,7 +646,7 @@ void Pc_VideoPresent(void) {
         int vw = Pc_ViewW();
 
         src.x = 0; src.y = 0;
-        src.w = vw; src.h = PC_H;
+        src.w = vw; src.h = Pc_ViewH();
         SDL_UpdateTexture(sTex, &src, gPc_Frame, PC_FRAME_W * (int)sizeof(gPc_Frame[0]));
         SDL_SetRenderDrawColor(sRen, gPc_Letterbox[0], gPc_Letterbox[1],
                                gPc_Letterbox[2], 255);
@@ -657,15 +659,15 @@ void Pc_VideoPresent(void) {
         case PC_SCALE_FIT: {
             // Fractional scale to fit the window, aspect preserved.
             double sx = (double)winW / vw;
-            double sy = (double)winH / PC_H;
+            double sy = (double)winH / Pc_ViewH();
             double s = sx < sy ? sx : sy;
             if (s < 1.0 / PC_VIDEO_SCALE_MAX) {
                 // Window too small to fill a 1/8th frame; keep it visible.
                 dst.w = vw / PC_VIDEO_SCALE_MAX;
-                dst.h = PC_H / PC_VIDEO_SCALE_MAX;
+                dst.h = Pc_ViewH() / PC_VIDEO_SCALE_MAX;
             } else {
                 dst.w = (int)(vw * s);
-                dst.h = (int)(PC_H * s);
+                dst.h = (int)(Pc_ViewH() * s);
             }
             dst.x = (winW - dst.w) / 2;
             dst.y = (winH - dst.h) / 2;
@@ -679,11 +681,11 @@ void Pc_VideoPresent(void) {
             break;
         case PC_SCALE_INTEGER:
         default:
-            scale = (winW / vw < winH / PC_H) ? winW / vw : winH / PC_H;
+            scale = (winW / vw < winH / Pc_ViewH()) ? winW / vw : winH / Pc_ViewH();
             if (scale < 1)
                 scale = 1;
             dst.w = vw * scale;
-            dst.h = PC_H * scale;
+            dst.h = Pc_ViewH() * scale;
             dst.x = (winW - dst.w) / 2;
             dst.y = (winH - dst.h) / 2;
             break;
@@ -709,12 +711,13 @@ void Pc_VideoShutdown(void) {
 
 void Pc_VideoDumpPPM(const char *path) {
     FILE *f = fopen(path, "wb");
-    unsigned x, y;
+    unsigned x;
+    int y;
     int vw = Pc_ViewW();
     if (f == NULL)
         return;
-    fprintf(f, "P6\n%d %d\n255\n", vw, PC_H);
-    for (y = 0; y < PC_H; y++)
+    fprintf(f, "P6\n%d %d\n255\n", vw, Pc_ViewH());
+    for (y = 0; y < Pc_ViewH(); y++)
         for (x = 0; x < (unsigned)vw; x++) {
             unsigned int c = gPc_Frame[y * PC_FRAME_W + x];
             unsigned char px[3];

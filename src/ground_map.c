@@ -1298,9 +1298,9 @@ bool8 sub_80A579C(PixelPos *pos1, PixelPos *pos2)
             GetDungeonBounds(gGroundMapDungeon_3001B70, pos1, pos2);
 
 pos1->x += PC_GROUND_CAM_MIN;
-            pos1->y += 0x5000;
+            pos1->y += PC_GROUND_CAM_MIN_Y;
             pos2->x -= PC_GROUND_CAM_MIN;
-            pos2->y -= 0x5000;
+            pos2->y -= PC_GROUND_CAM_MIN_Y;
 
             if(convTable->unk0 == 0xA)
             {

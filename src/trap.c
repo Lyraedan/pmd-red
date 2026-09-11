@@ -98,7 +98,7 @@ for (y = gDungeon->unk181e8.cameraPos.y - 5; y < gDungeon->unk181e8.cameraPos.y 
             if (r6) {
                 s32 spriteX = (x * 24) - gDungeon->unk181e8.cameraPixelPos.x;
                 s32 spriteY = (y * 24) - gDungeon->unk181e8.cameraPixelPos.y;
-                if (spriteX >= -32 && spriteY >= -32 && spriteX <= PC_VIEW_W() + 32 && spriteY <= 192)  {
+                if (spriteX >= -32 && spriteY >= -32 && spriteX <= PC_VIEW_W() + 32 && spriteY <= PC_VIEW_H() + 32)  {
                     SpriteSetObjMode(&gUnknown_202EDC0, 0);
                     SpriteSetY(&gUnknown_202EDC0, spriteY);
                     SpriteSetX(&gUnknown_202EDC0, spriteX);

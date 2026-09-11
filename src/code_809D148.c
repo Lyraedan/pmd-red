@@ -289,7 +289,7 @@ void sub_809D25C(void)
             r3 = sp1C.y - 1;
 
         sUnknown_20399E8.unk3C.x = (r2 - PC_GROUND_CAM_X) / 256;
-        sUnknown_20399E8.unk3C.y = (r3 - 20480) / 256;
+        sUnknown_20399E8.unk3C.y = (r3 - PC_GROUND_CAM_Y) / 256;
         sUnknown_20399E8.unk44 = 1;
     }
 }

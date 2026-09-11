@@ -10,11 +10,15 @@
 
 #define UNROLL16(x) do { x; x; x; x; x; x; x; x; x; x; x; x; x; x; x; x; } while (0)
 
+// Compile-time table row count (the GBA screen height); the per-scanline
+// window data is generated for Pc_ViewH() rows on PC.
 #define Y_MAX 160
 #ifdef PLATFORM_PC
 #define X_MAX Pc_ViewW()
+#define PC_WIN_ROWS() Pc_ViewH()
 #else
 #define X_MAX 240
+#define PC_WIN_ROWS() 160
 #endif
 
 EWRAM_DATA bool8 gDrawWindow = FALSE;
@@ -34,8 +38,8 @@ UNUSED EWRAM_DATA static u32 sUnused0 = 0;
 // the GBA's 8-bit (0-255) window coordinates. In classic 240 mode they mirror
 // the packed bytes, so the compositor semantics are unchanged.
 #define PC_WIN_STRIDE 4
-EWRAM_DATA static s16 sBuffer0[Y_MAX * PC_WIN_STRIDE] = {0};
-EWRAM_DATA static s16 sBuffer1[Y_MAX * PC_WIN_STRIDE] = {0};
+EWRAM_DATA static s16 sBuffer0[PC_MAX_WIN_ROWS * PC_WIN_STRIDE] = {0};
+EWRAM_DATA static s16 sBuffer1[PC_MAX_WIN_ROWS * PC_WIN_STRIDE] = {0};
 #else
 EWRAM_DATA static s16 sBuffer0[324] = {0}; // These might be [2][162]
 EWRAM_DATA static s16 sBuffer1[324] = {0};
@@ -158,6 +162,41 @@ static void Pc_PutDim(s16 **pp, s16 win0, s16 packed)
     Pc_ShiftDim(packed, &x1, &x2);
     Pc_PutWin(pp, win0, packed, x1, x2);
 }
+
+// Fill Pc_ViewH() scanlines for the "all revealed" window: WIN0H from the
+// message-box windows (disabled past row 160), WIN1 disabled.
+static void Pc_FillWin0(s16 **pp, const s16 *src1)
+{
+    int r;
+    for (r = 0; r < PC_WIN_ROWS(); r++) {
+        s16 w0 = (r < Y_MAX) ? src1[r] : 0xF0F0;
+        Pc_PutWin(pp, w0, 0, 0, 0);
+    }
+}
+
+// Fill Pc_ViewH() scanlines for the corridor-dim cases. The 160-row table is
+// re-centered vertically onto the player (Pc_ViewH()/2 instead of 96) and
+// horizontally via Pc_ShiftDim; rows outside the table are fully dark.
+static void Pc_FillDim(s16 **pp, const s16 *src1, const s16 *table)
+{
+    int r;
+    int rowShift = 0;
+    if (Pc_WidescreenOn())
+        rowShift = Pc_ViewH() / 2 - 96;
+    for (r = 0; r < PC_WIN_ROWS(); r++) {
+        s16 w0 = (r < Y_MAX) ? src1[r] : 0xF0F0;
+        s16 v;
+        if (rowShift == 0)
+            v = table[r];
+        else if (r >= rowShift && r < rowShift + Y_MAX)
+            v = table[r - rowShift];
+        else
+            v = 0x100;
+        s16 x1, x2;
+        Pc_ShiftDim(v, &x1, &x2);
+        Pc_PutWin(pp, w0, v, x1, x2);
+    }
+}
 #else
 #define Pc_PutWin(pp, w0, w1, x1, x2) do { *(*(pp))++ = (w0); *(*(pp))++ = (w1); } while (0)
 #define Pc_PutDim(pp, win0, packed) do { *(*(pp))++ = (win0); *(*(pp))++ = (packed); } while (0)
@@ -195,31 +234,50 @@ void CopyWindowBgBuffer(s32 *pos, u8 kind)
     sBufferPtr = dst;
 
     switch (kind) {
+#ifdef PLATFORM_PC
+        case COPY_WINDOW_BG_BUFFER_WIN0:
+            Pc_FillWin0(&dst, src1);
+            break;
+        case COPY_WINDOW_BG_BUFFER_DIM2:
+            Pc_FillDim(&dst, src1, sCorridorDim2);
+            break;
+        case COPY_WINDOW_BG_BUFFER_DIM1:
+            Pc_FillDim(&dst, src1, sCorridorDim1);
+            break;
+#else
         case COPY_WINDOW_BG_BUFFER_WIN0:
             for (i = 0; i < 10; i++) {
                 UNROLL16(
-                    Pc_PutWin(&dst, *src1++, 0, 0, 0);   // WIN1H disabled
+                    *dst++ = *src1++;   // WIN0H
+                    *dst++ = 0;         // WIN1H (disabled)
                 );
             }
             break;
-#ifdef PLATFORM_PC
         case COPY_WINDOW_BG_BUFFER_DIM2:
             src2 = sCorridorDim2;
             for (i = 0; i < 10; i++) {
-                UNROLL16(Pc_PutDim(&dst, *src1++, *src2++));
+                UNROLL16(
+                    *dst++ = *src1++;   // WIN0H
+                    *dst++ = *src2++;   // WIN1H (dim)
+                );
             }
             break;
         case COPY_WINDOW_BG_BUFFER_DIM1:
             src2 = sCorridorDim1;
             for (i = 0; i < 10; i++) {
-                UNROLL16(Pc_PutDim(&dst, *src1++, *src2++));
+                UNROLL16(
+                    *dst++ = *src1++;   // WIN0H
+                    *dst++ = *src2++;   // WIN1H (dim)
+                );
             }
             break;
+#endif
+#ifdef PLATFORM_PC
         case COPY_WINDOW_BG_BUFFER_ROOM_DIM:
             if ((pos[0] < 0 && pos[2] < 0)
                 || (pos[1] < 0 && pos[3] < 0)
                 || (pos[0] >= X_MAX && pos[2] >= X_MAX)
-                || (pos[1] >= Y_MAX && pos[3] >= Y_MAX)) {
+                || (pos[1] >= PC_WIN_ROWS() && pos[3] >= PC_WIN_ROWS())) {
                 // If the camera is outside the room, dim the entire screen
                 for (i = 0; i < 10; i++) {
                     UNROLL16(Pc_PutWin(&dst, *src1++, 0xF0, 0, Pc_ViewW()));
@@ -228,7 +286,7 @@ void CopyWindowBgBuffer(s32 *pos, u8 kind)
             else {
                 s32 left;
                 s32 right;
-                for (i = 0; i < Y_MAX; i++) {
+                for (i = 0; i < PC_WIN_ROWS(); i++) {
                     if (pos[1] > i) {
                         Pc_PutWin(&dst, *src1++, 256, 1, 0);
                     }
@@ -266,24 +324,6 @@ void CopyWindowBgBuffer(s32 *pos, u8 kind)
             }
             break;
 #else
-        case COPY_WINDOW_BG_BUFFER_DIM2:
-            src2 = sCorridorDim2;
-            for (i = 0; i < 10; i++) {
-                UNROLL16(
-                    *dst++ = *src1++;   // WIN0H
-                    *dst++ = *src2++;   // WIN1H (dim)
-                );
-            }
-            break;
-        case COPY_WINDOW_BG_BUFFER_DIM1:
-            src2 = sCorridorDim1;
-            for (i = 0; i < 10; i++) {
-                UNROLL16(
-                    *dst++ = *src1++;   // WIN0H
-                    *dst++ = *src2++;   // WIN1H (dim)
-                );
-            }
-            break;
         case COPY_WINDOW_BG_BUFFER_ROOM_DIM:
             if ((pos[0] < 0 && pos[2] < 0)
                 || (pos[1] < 0 && pos[3] < 0)

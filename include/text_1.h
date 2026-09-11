@@ -1,6 +1,7 @@
 #ifndef GUARD_TEXT_1_H
 #define GUARD_TEXT_1_H
 
+#include "pc_widescreen.h"
 #include "structs/str_text.h"
 
 // These should probably go to code_8009804.h
@@ -43,7 +44,11 @@ extern void (*ScrollUpWindowFunc)(s32 windowId);
 extern void (*gIwramTextFunc3)(s32 a0);
 extern void (*gIwramTextFunc4)(s32 a0);
 
+#ifdef PLATFORM_PC
+extern s16 gWindowBg[PC_MAX_WIN_ROWS];
+#else
 extern s16 gWindowBg[161];
+#endif
 
 extern const u32 gUnknown_80B853C[16];
 extern const unkShiftData gCharMasksOffsets[8];

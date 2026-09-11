@@ -442,7 +442,7 @@ bool8 ShouldDisplayEntity(Entity *ent)
         s32 x = (ent->pixelPos.x / 256) - gDungeon->unk181e8.cameraPixelPos.x;
         s32 y = (ent->pixelPos.y / 256) - gDungeon->unk181e8.cameraPixelPos.y;
 
-        if (x >= -32 && y >= -32 && x <= PC_VIEW_W() + 32 && y <= 192) {
+        if (x >= -32 && y >= -32 && x <= PC_VIEW_W() + 32 && y <= PC_VIEW_H() + 32) {
             UnkDungeonGlobal_unk181E8_sub *saveTyping = &gDungeon->unk181e8;
 
             switch (GetEntityType(ent)) {

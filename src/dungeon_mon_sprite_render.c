@@ -2,6 +2,7 @@
 #include "globaldata.h"
 #include "dungeon_mon_sprite_render.h"
 #include "constants/direction.h"
+#include "pc_widescreen.h"
 #include "constants/status.h"
 #include "constants/ability.h"
 #include "constants/type.h"
@@ -292,7 +293,7 @@ void UpdateMonsterSprite(Entity *entity)
 
     xSprite = entInfo->pixelPos.x - gDungeon->unk181e8.cameraPixelPos.x;
     ySprite = entInfo->pixelPos.y - gDungeon->unk181e8.cameraPixelPos.y;
-    if (xSprite >= -32 && ySprite >= -32 && xSprite <= 271 && ySprite <= 191 && shadowIndex != 6 && entity->unk22 == 0) {
+    if (xSprite >= -32 && ySprite >= -32 && xSprite <= PC_VIEW_W() + 31 && ySprite <= PC_VIEW_H() + 31 && shadowIndex != 6 && entity->unk22 == 0) {
         struct unkStruct_202ED28 *spriteStructPtr = &gUnknown_202ED28[var_34][shadowIndex];
         if (entInfo->unk156 != 0) {
             SpriteSetX(&spriteStructPtr->sprite, xSprite + spriteStructPtr->pos.x);

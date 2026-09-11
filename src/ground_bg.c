@@ -25,12 +25,17 @@
 #define PC_BG_STRIDE() 64
 #define PC_CHUNKS2() (Pc_ViewW8() / 2) // 2x2-chunk maps: cols/2 chunks per row
 #define PC_CHUNKS3() (Pc_ViewW8() / 3) // 3x3-chunk maps: cols/3 chunks per row
+// Chunk rows drawn per column of chunks (2x2: 2 rows/chunk; 3x3: 3 rows/chunk).
+#define PC_CHUNK_ROWS2() (Pc_WidescreenOn() ? (Pc_ViewH8() / 2 + 2) : 11) // GBA: 22 rows
+#define PC_CHUNK_ROWS3() (Pc_WidescreenOn() ? (Pc_ViewH8() / 3 + 1) : 8)  // GBA: 24 rows
 #define Pc_MarkGroundWide() Pc_WideBgsMark()
 #else
 #define PC_BG_TILEMAPS(layer) gBgTilemaps[layer]
 #define PC_BG_STRIDE() 32
 #define PC_CHUNKS2() 16
 #define PC_CHUNKS3() 10
+#define PC_CHUNK_ROWS2() 11
+#define PC_CHUNK_ROWS3() 8
 #define Pc_MarkGroundWide()
 #endif
 
@@ -883,7 +888,7 @@ static void RenderChunksToBgTilemap_2x2(MapRender *mapRender)
     u16 *ptr = &mapRender->chunkMappings[0][(mapRender->chunkPos.y * 64) + mapRender->chunkPos.x];
     s32 unk28Id = 0;
 
-    for (i = 0; i < 11; ptr += 64, i++) {
+    for (i = 0; i < PC_CHUNK_ROWS2(); ptr += 64, i++) {
         u16 *currPtr = ptr;
 
         for (arrPtrId = 0; arrPtrId < 2; arrPtrId++) {
@@ -915,7 +920,7 @@ static void RenderChunksToBgTilemaps_2x2(MapRender *mapRender)
     ptr1 = &mapRender->chunkMappings[0][(mapRender->chunkPos.y * 64) + mapRender->chunkPos.x];
     ptr2 = &mapRender->chunkMappings[1][(mapRender->chunkPos.y * 64) + mapRender->chunkPos.x];
     unk28Id = 0;
-    for (i = 0; i < 11; ptr1 += 64, ptr2 += 64, i++) {
+    for (i = 0; i < PC_CHUNK_ROWS2(); ptr1 += 64, ptr2 += 64, i++) {
         u16 *currPtr1 = ptr1;
         u16 *currPtr2 = ptr2;
 
@@ -951,7 +956,7 @@ static void RenderChunksToBgTilemap_3x3(MapRender *mapRender)
     u16 *ptr = &mapRender->chunkMappings[0][(mapRender->chunkPos.y * 64) + mapRender->chunkPos.x];
     s32 unk28Id = 0;
 
-    for (i = 0; i < 8; ptr += 64, i++) {
+    for (i = 0; i < PC_CHUNK_ROWS3(); ptr += 64, i++) {
         u16 *currPtr = ptr;
 
         for (arrPtrId = 0; arrPtrId < 3; arrPtrId++) {
@@ -1034,7 +1039,7 @@ static void RenderChunksToBgTilemapWrapAround_3x3(MapRender *mapRender)
     sub1 = mapRender->heightChunks - mapRender->chunkPos.y;
     sub2 = mapRender->widthChunks - mapRender->chunkPos.x;
 
-    for (i = 0; i < 8; ptr += 64, i++) {
+    for (i = 0; i < PC_CHUNK_ROWS3(); ptr += 64, i++) {
         u16 *currPtr;
         s32 currSub2 = sub2;
 
@@ -1134,7 +1139,7 @@ static void RenderChunksToBgTilemaps_3x3(MapRender *mapRender)
     // Stack memes again...
     ASM_MATCH_TRICK(ptr2);ASM_MATCH_TRICK(ptr2);ASM_MATCH_TRICK(ptr2);
 
-    for (i = 0; i < 8; ptr1 += 64, ptr2 += 64, i++) {
+    for (i = 0; i < PC_CHUNK_ROWS3(); ptr1 += 64, ptr2 += 64, i++) {
         u16 *currPtr1 = ptr1;
         u16 *currPtr2 = ptr2;
 
