@@ -20,6 +20,9 @@
 // Ground-mode camera centering constant (code_809D148.c): places the leader
 // Pc_ViewW()/2 + 1 px from the left. GBA = 30976 (121*256).
 #define PC_GROUND_CAM_X ((Pc_ViewW() / 2 + 1) * 256 - 0x80)
+// Ground camera clamp margin (sub_80A579C): keeps the view inside the map.
+// GBA = 0x7800 (120*256) for the 240px view.
+#define PC_GROUND_CAM_MIN ((Pc_ViewW() / 2 + 1) * 256)
 // Visible width for on-screen culling (240 classic / 384 widescreen).
 #define PC_VIEW_W() (Pc_ViewW())
 // Trap/stairs scan half-extent in map cells (24px): 6 = classic view.
@@ -31,6 +34,7 @@
 #define PC_CAM_CENTER_X 120
 #define PC_CAM_EDGE 240
 #define PC_GROUND_CAM_X 30976
+#define PC_GROUND_CAM_MIN 0x7800
 #define PC_VIEW_W() 240
 #define PC_TRAP_HALF 6
 #define PC_CAM_TILES_HALF 6

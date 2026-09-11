@@ -1,6 +1,7 @@
 #include "global.h"
 #include "globaldata.h"
 #include "ground_map.h"
+#include "pc_widescreen.h"
 #include "debug.h"
 #include "event_flag.h"
 #include "ground_bg.h"
@@ -1296,9 +1297,9 @@ bool8 sub_80A579C(PixelPos *pos1, PixelPos *pos2)
             convTable = &gGroundMapConversionTable[gGroundMapAction->groundMapId];
             GetDungeonBounds(gGroundMapDungeon_3001B70, pos1, pos2);
 
-            pos1->x += 0x7800;
+pos1->x += PC_GROUND_CAM_MIN;
             pos1->y += 0x5000;
-            pos2->x -= 0x7800;
+            pos2->x -= PC_GROUND_CAM_MIN;
             pos2->y -= 0x5000;
 
             if(convTable->unk0 == 0xA)

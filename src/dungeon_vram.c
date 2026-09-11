@@ -39,6 +39,12 @@
 
 // File split is correct. This technical file deals with windows, advancing frames(v-blanks) and vram / pal set-up.
 
+#ifdef PLATFORM_PC
+#define PC_DUNGEON_MARK_WIDE() Pc_WideBgsMark()
+#else
+#define PC_DUNGEON_MARK_WIDE()
+#endif
+
 struct DungeonPalFile
 {
     void *unk0;
@@ -159,6 +165,11 @@ void sub_803E250(void)
 
 void DungeonRunFrameActions(u32 a0)
 {
+    // Every dungeon frame owns BG2/BG3 (even idle ones, where no tilemap strip
+    // is redrawn): mark the wide tilemaps so the compositor keeps sampling
+    // them instead of the stale VRAM screenbases. The mark is consumed by the
+    // renderer at the end of the frame.
+    PC_DUNGEON_MARK_WIDE();
     if (gUnknown_203B40C != 0)
         sub_803E490(a0);
     else
