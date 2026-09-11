@@ -32,5 +32,7 @@ If you have everything it will build successfully and it will copy the rom into 
 ## Don't want to build it yourself?
 There is a built exe in the release page of this repo.
 
+YOU MUST PROVIDE THE US ROM YOURSELF!
+
 # AI Notice
 I did use AI to assist the creation of this PC port as the decomp this is a fork of is incomplete and there are alot of "stub" and obfuscated function and variable names.
