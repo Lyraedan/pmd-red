@@ -39,4 +39,4 @@ There is a built exe in the release page of this repo.
 YOU MUST PROVIDE THE US ROM YOURSELF!
 
 # AI Notice
-I did use AI to assist the creation of this PC port as the decomp this is a fork of is incomplete and there are alot of "stub" and obfuscated function and variable names.
+I did use AI to assist the creation of this PC port, I was testing its capabilities as the decomp this is a fork of is incomplete and there are alot of "stub" and obfuscated function and variable names.
