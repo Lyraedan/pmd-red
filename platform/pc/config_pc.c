@@ -129,6 +129,8 @@ static void Pc_ResetVideoDefault(void)
     sVideo.letterboxG = 0;
     sVideo.letterboxB = 0;
     sVideo.widescreen = 0;
+    sVideo.presentHz = 0;   // match display refresh
+    sVideo.interpolate = 0;
 }
 
 PcVideoPrefs *Pc_ConfigVideoPrefs(void)
@@ -326,6 +328,8 @@ void Pc_ConfigLoad(const char *exeDir)
             else if (strcmp(key, "LetterboxG") == 0) sVideo.letterboxG = v;
             else if (strcmp(key, "LetterboxB") == 0) sVideo.letterboxB = v;
             else if (strcmp(key, "Widescreen") == 0) sVideo.widescreen = v;
+            else if (strcmp(key, "PresentHz") == 0) sVideo.presentHz = v;
+            else if (strcmp(key, "Interpolate") == 0) sVideo.interpolate = v;
         } else if (strcmp(section, "Audio") == 0) {
             int v = atoi(val);
             int p;
@@ -393,6 +397,8 @@ void Pc_ConfigSave(void)
     fprintf(f, "LetterboxG=%d\n", sVideo.letterboxG);
     fprintf(f, "LetterboxB=%d\n", sVideo.letterboxB);
     fprintf(f, "Widescreen=%d\n", sVideo.widescreen);
+    fprintf(f, "PresentHz=%d\n", sVideo.presentHz);
+    fprintf(f, "Interpolate=%d\n", sVideo.interpolate);
     fprintf(f, "[Audio]\n");
     fprintf(f, "MasterVolume=%d\n", sAudio.masterVolume);
     fprintf(f, "Muted=%d\n", sAudio.muted);

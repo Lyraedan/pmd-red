@@ -23,8 +23,8 @@
 #ifdef PLATFORM_PC
 #define PC_BG_TILEMAPS(layer) gPc_WideTilemaps[layer]
 #define PC_BG_STRIDE() 64
-#define PC_CHUNKS2() (Pc_ViewW8() / 2) // 2x2-chunk maps: cols/2 chunks per row
-#define PC_CHUNKS3() (Pc_ViewW8() / 3) // 3x3-chunk maps: cols/3 chunks per row
+#define PC_CHUNKS2() (Pc_ViewW8() / 2 + 2) // 2x2-chunk maps: cols/2 chunks per row + right margin for the scroll offset
+#define PC_CHUNKS3() (Pc_ViewW8() / 3 + 2) // 3x3-chunk maps: cols/3 chunks per row + right margin for the scroll offset
 // Chunk rows drawn per column of chunks (2x2: 2 rows/chunk; 3x3: 3 rows/chunk).
 #define PC_CHUNK_ROWS2() (Pc_WidescreenOn() ? (Pc_ViewH8() / 2 + 2) : 11) // GBA: 22 rows
 #define PC_CHUNK_ROWS3() (Pc_WidescreenOn() ? (Pc_ViewH8() / 3 + 1) : 8)  // GBA: 24 rows

@@ -85,6 +85,8 @@ typedef struct PcVideoPrefs
     int letterboxG;    // 0-255
     int letterboxB;    // 0-255
     int widescreen;    // 0 = 240x160 classic, 1 = 384x160 widescreen
+    int presentHz;     // present rate: 0 = match display, >0 = target Hz, <0 = uncapped
+    int interpolate;   // 0/1 interpolate frames between 60Hz logic ticks (Phase 2)
 } PcVideoPrefs;
 
 // Number of m4a music players (INDEX_BGM..INDEX_SE6; must match music.h).
