@@ -15,7 +15,8 @@ For contacts and other pret projects, see [pret.github.io](https://pret.github.i
 # PC Port
 
 To build, 
-First run @git submodule update --init --recursive to fetch the latest imgui version.
+
+First run "git submodule update --init --recursive" to fetch the latest imgui version.
 
 Place your US rom of Red Rescue Team in the root of the repo, then run "builder/win_rebuild.bat" to build. (Tested only on x86_64 intel)
 
