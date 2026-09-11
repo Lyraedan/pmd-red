@@ -29,6 +29,14 @@
 __attribute__((weak)) bool8 gDrawWindow = FALSE;
 __attribute__((weak)) s16 *gWinBufferPtr = NULL;
 
+// Same for the blend state (src/bg_control.c). On GBA, VBlank_CB copies
+// gBldCnt/gBldAlpha into REG_BLDCNT/REG_BLDALPHA every frame; the PC port has
+// no VBlank_CB, so Pc_VideoRenderAndUpload latches them into gPcRegs instead
+// (see below). Weak defaults mirror the boot shadow values so the smoke binary
+// behaves like the real boot config.
+__attribute__((weak)) u16 gBldCnt = BLDCNT_TGT1_BG1 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BD | BLDCNT_TGT2_OBJ;
+__attribute__((weak)) u16 gBldAlpha = BLDALPHA_BLEND(10, 6);
+
 // Same for the game's font accessors: the overlay reads real glyphs via
 // GetCharacter once the full game is linked; the smoke binary gets the NULL
 // stub and simply draws no overlay text.
@@ -552,6 +560,7 @@ static void Pc_RenderFrame(void) {
             unsigned top = pltt[0];   // backdrop
             unsigned under = pltt[0]; // 2nd target candidate (layer below top)
             int topLayer = -1;        // drawn layer id: 0-3 BG, 4 OBJ
+            int underLayer = -1;      // layer id of `under` (-1 = backdrop/BD)
             int objSemi = 0;
 
             for (p = 3; p >= 0; p--) {
@@ -567,6 +576,7 @@ static void Pc_RenderFrame(void) {
                                    (bgCnt[i] >> 8) & 0x1F, bgHofs[i], bgVofs[i],
                                    x, y, &pal)) {
                         under = (topLayer < 0) ? pltt[0] : top; // layer below
+                        underLayer = topLayer;
                         top = pltt[pal];
                         topLayer = i;
                         objSemi = 0;
@@ -592,6 +602,7 @@ static void Pc_RenderFrame(void) {
                                 winO = &oam[act[s].idx];
                                 winIdx = act[s].idx;
                                 under = (topLayer < 0) ? pltt[0] : top;
+                                underLayer = topLayer;
                                 top = pltt[pal];
                                 topLayer = 4;
                                 objSemi = (oam[act[s].idx].objMode == 1) ? 1 : 0;
@@ -613,10 +624,15 @@ static void Pc_RenderFrame(void) {
                 else
                     is1st = (bldcnt >> topLayer) & 1;
 
-                if (topLayer == 4)
+                // Second target is the layer directly below the top pixel
+                // (the GBA blends first-target `top` with the second-target
+                // `under` below it), not the top layer itself.
+                if (underLayer == 4)
                     is2nd = (bldcnt >> 12) & 1;
+                else if (underLayer < 0)
+                    is2nd = (bldcnt >> 13) & 1;
                 else
-                    is2nd = (bldcnt >> (8 + topLayer)) & 1;
+                    is2nd = (bldcnt >> (8 + underLayer)) & 1;
 
                 bld = 0;
                 if (is1st && is2nd)
@@ -643,6 +659,15 @@ static void Pc_RenderFrame(void) {
 // texture (no blit/present). Decoupled from Pc_VideoPresentOnly so the host
 // frame clock can present the same uploaded frame at display refresh rate.
 void Pc_VideoRenderAndUpload(void) {
+    // The game writes gBldCnt/gBldAlpha (sub_800CDA8 / SetBldAlphaReg) and the
+    // GBA's VBlank_CB copies them to REG_BLDCNT/REG_BLDALPHA every frame. The
+    // PC port replaces VBlank_CB with Pc_VBlankCommit (which only clears a
+    // flag), so latch the blend state here or the compositor would be stuck on
+    // the boot-time config and scene blends (e.g. the town/team-base clouds)
+    // would never fire.
+    gPcRegs.BLDCNT = gBldCnt;
+    gPcRegs.BLDALPHA = gBldAlpha;
+
     Pc_RenderFrame();
     Pc_DrawOverlay();
     gPc_FrameNo++;

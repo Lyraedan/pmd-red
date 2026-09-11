@@ -37,6 +37,7 @@
 #include "window_buffer.h"
 #include "graphics_memory.h"
 #include "main_loops.h"
+#include "bg_control.h"
 
 static void Pc_CrashReport(int sig)
 {
@@ -94,6 +95,11 @@ static void Pc_ApplyBootShadows(void) {
     gPcRegs.WINOUT = WINOUT_WIN01_BG0 | WINOUT_WIN01_BG2 | WINOUT_WIN01_BG3 | WINOUT_WIN01_OBJ | WINOUT_WIN01_CLR;
     gPcRegs.BLDCNT = BLDCNT_TGT1_BG1 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BD | BLDCNT_TGT2_OBJ;
     gPcRegs.BLDALPHA = BLDALPHA_BLEND(10, 6);
+    // src/main.c:71-72 also initializes the game's blend globals (EWRAM); that
+    // file is excluded from the PC build, so mirror it here so the per-frame
+    // latch in video_pc.c sees the boot config until the game changes it.
+    gBldCnt = BLDCNT_TGT1_BG1 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BD | BLDCNT_TGT2_OBJ;
+    gBldAlpha = BLDALPHA_BLEND(10, 6);
     gPcRegs.BG0CNT = BGCNT_PRIORITY(0) | BGCNT_CHARBASE(0) | BGCNT_WRAP | BGCNT_SCREENBASE(12);
     gPcRegs.BG1CNT = BGCNT_PRIORITY(1) | BGCNT_CHARBASE(0) | BGCNT_WRAP | BGCNT_SCREENBASE(13);
     gPcRegs.BG2CNT = BGCNT_PRIORITY(2) | BGCNT_CHARBASE(2) | BGCNT_WRAP | BGCNT_SCREENBASE(14);
