@@ -43,6 +43,6 @@ I did use AI to assist the creation of this PC port, I was testing its capabilit
 
 If you disagree with this well you're more then welcome to do this by hand you haven't got to play this version. 
 
-For me this is just an educational project.
+For me this is just an educational project and I only made this repo public because the game is actually playable.
 
 AI is a tool. Not a solution
