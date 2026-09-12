@@ -563,30 +563,49 @@ static u8 *sub_80A5204(void *a, const u8 *b, BmaHeader *c, s32 d)
     if (hasDataLayer > 0) {
         // Decode the attribute/data layer, one 256-byte row at a time.
         // Each row is 5 border bytes, mapWidthTiles data bytes, 0xFF padding.
+        // Rows after the first are XOR-delta encoded against the row above:
+        // each decoded value is XORed with the previous row's byte at the same
+        // column (matching the GBA asm). A zero run therefore carries the
+        // previous row's value unchanged.
         for (row = 0; row < mapHeightTiles; row++) {
+            u8 *prev = NULL;
             for (i = 0; i < 5; i++)
                 *dest++ = 0xFF;
+            if (row > 0)
+                prev = dest - 0x100;
 
             pos = 0;
             while (pos < mapWidthTiles) {
                 u8 cmd = *src++;
                 if (cmd > 0xBF) {
                     count = cmd - 0xBF;
-                    for (i = 0; i < count; i++)
-                        *dest++ = *src++;
+                    for (i = 0; i < count; i++) {
+                        u8 value = *src++;
+                        if (prev != NULL)
+                            value ^= *prev++;
+                        *dest++ = value;
+                    }
                     pos += count;
                 }
                 else if (cmd > 0x7F) {
                     count = cmd - 0x7F;
                     u8 value = *src++;
-                    for (i = 0; i < count; i++)
-                        *dest++ = value;
+                    for (i = 0; i < count; i++) {
+                        u8 out = value;
+                        if (prev != NULL)
+                            out ^= *prev++;
+                        *dest++ = out;
+                    }
                     pos += count;
                 }
                 else {
                     count = cmd + 1;
-                    for (i = 0; i < count; i++)
-                        *dest++ = 0;
+                    for (i = 0; i < count; i++) {
+                        u8 out = 0;
+                        if (prev != NULL)
+                            out = *prev++;
+                        *dest++ = out;
+                    }
                     pos += count;
                 }
             }
