@@ -41,7 +41,7 @@ YOU MUST PROVIDE THE US ROM YOURSELF!
 # AI Notice
 I did use AI to assist the creation of this PC port, I was testing its capabilities as the decomp this is a fork of is incomplete and there are alot of "stub" and obfuscated function and variable names. 
 
-If you disagree with this well you're more then welcome to do this by hand you haven't got to play this version. 
+If you disagree with this well you're more then welcome to do this by hand (you won't) you haven't got to play this version. 
 
 For me this is just an educational project and I only made this repo public because the game is actually playable.
 
